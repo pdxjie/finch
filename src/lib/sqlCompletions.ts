@@ -289,6 +289,7 @@ export interface QueryContext {
   mode: CompletionMode;
   qualifier: string;
   aliases: Record<string, string>;
+  tables: string[];
 }
 
 function cleanIdent(value: string) {
@@ -299,17 +300,25 @@ function cleanIdent(value: string) {
 export function readQueryContext(textBefore: string): QueryContext {
   const tail = textBefore.slice(-80);
   const aliases: Record<string, string> = {};
-  const aliasPattern = /\b(?:from|join|update|into)\s+(`?[\w$]+`?)(?:\s+(?:as\s+)?(`?[\w$]+`?))?/gi;
-  let match: RegExpExecArray | null;
-  while ((match = aliasPattern.exec(textBefore))) {
-    const table = cleanIdent(match[1]);
-    const alias = match[2] ? cleanIdent(match[2]) : '';
+  const tables: string[] = [];
+  const addTable = (raw: string, rawAlias: string) => {
+    const parts = raw.split('.').map(cleanIdent).filter(Boolean);
+    const table = parts[parts.length - 1] || '';
+    if (!table) return;
+    const alias = rawAlias ? cleanIdent(rawAlias) : '';
+    if (!tables.includes(table)) tables.push(table);
+    aliases[table] = table;
     if (alias && !RESERVED.has(alias.toUpperCase()) && alias.toUpperCase() !== table.toUpperCase()) {
       aliases[alias] = table;
     }
+  };
+  const aliasPattern = /\b(?:from|join|update|into)\s+((?:`[^`]+`|[\w$]+)(?:\s*\.\s*(?:`[^`]+`|[\w$]+))?)(?:\s+(?:as\s+)?((?!(?:where|join|left|right|inner|outer|cross|on|using|group|order|limit|offset|union|having|set|values|and|or|as|natural|straight_join|force|use|ignore)\b)`?[\w$]+`?))?/gi;
+  let match: RegExpExecArray | null;
+  while ((match = aliasPattern.exec(textBefore))) {
+    addTable(match[1], match[2] || '');
   }
-  const firstTable = Object.values(aliases)[0];
-  if (firstTable) aliases[firstTable] = firstTable;
+  // A JOIN/UPDATE table can also appear after a newline with no alias; the
+  // regex above already covers that, but trailing commas with no keyword do not.
 
   const qualifier = /([A-Za-z0-9_$`]+)\.\s*[A-Za-z0-9_$`]*$/.exec(tail)?.[1] || '';
   let mode: CompletionMode = 'any';
@@ -320,7 +329,7 @@ export function readQueryContext(textBefore: string): QueryContext {
   ) {
     mode = 'column';
   }
-  return { mode, qualifier: cleanIdent(qualifier), aliases };
+  return { mode, qualifier: cleanIdent(qualifier), aliases, tables };
 }
 
 function quoteIfNeeded(name: string) {
@@ -420,6 +429,7 @@ export function finchCompletions(context: CompletionContext): CompletionResult |
   };
 
   const mentionedTables = new Set<string>();
+  for (const table of query.tables) mentionedTables.add(table);
   for (const table of Object.values(aliases)) mentionedTables.add(table);
   if (qualifierTable) mentionedTables.add(qualifierTable);
 
@@ -439,14 +449,15 @@ export function finchCompletions(context: CompletionContext): CompletionResult |
       ? [...mentionedTables]
       : [...tableNames].slice(0, 40);
     for (const table of columnTables) {
-      const primary = mentionedTables.size <= 1 && mentionedTables.has(table);
+      const mentioned = mentionedTables.has(table);
+      const primary = mentioned && (mentionedTables.size === 1 || query.tables[0] === table);
       for (const column of columnsFor(table)) {
         push({
           label: column.name,
           type: 'property',
           detail: `${table} · ${column.columnType}`,
           apply: quoteIfNeeded(column.name),
-          boost: primary ? 80 : 34,
+          boost: primary ? 96 : mentioned ? 64 : 30,
           info: () => columnTip(column, table),
         });
       }

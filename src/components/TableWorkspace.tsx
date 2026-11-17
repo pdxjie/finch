@@ -402,11 +402,11 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
                 <button className="btn btn-ghost btn-sm" onClick={addDraftFilter}>
                   <Plus size={12} /> 添加条件
                 </button>
-                <span className="filter-panel-spacer" />
-                <button className="btn btn-ghost btn-sm" onClick={() => setFilterOpen(false)}>收起</button>
-                <button className="btn btn-primary btn-sm" onClick={applyFilters}>
+                <button className="btn btn-ghost btn-sm filter-apply" onClick={applyFilters}>
                   <Check size={12} /> 应用筛选
                 </button>
+                <span className="filter-panel-spacer" />
+                <button className="btn btn-ghost btn-sm" onClick={() => setFilterOpen(false)}>收起</button>
               </div>
             </div>
           </div>

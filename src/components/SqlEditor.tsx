@@ -232,6 +232,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(function Sq
     const tab = state.tabs.find((item) => item.id === tabId);
     if (!tab?.sessionId || !tab.database) return;
     state.loadAllColumns(tab.sessionId, tab.database).catch(() => {});
+    state.loadTables(tab.sessionId, tab.database).catch(() => {});
   }, [tabId, sessionId, database]);
 
   useEffect(() => {

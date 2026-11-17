@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BookMarked,
   Check,
@@ -33,17 +33,27 @@ import { Select } from './Select';
 const UI_FONTS = [
   { label: '系统', value: '' },
   { label: '苹方', value: 'PingFang SC' },
-  { label: 'Helvetica', value: 'Helvetica Neue' },
+  { label: '冬青黑', value: 'Hiragino Sans GB' },
+  { label: '黑体', value: 'Heiti SC' },
   { label: '宋体', value: 'Songti SC' },
+  { label: '楷体', value: 'Kaiti SC' },
   { label: '圆体', value: 'Yuanti SC' },
+  { label: 'Helvetica', value: 'Helvetica Neue' },
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Georgia', value: 'Georgia' },
 ];
 
 const MONO_FONTS = [
   { label: '系统', value: '' },
+  { label: 'SF Mono', value: 'SF Mono' },
   { label: 'Menlo', value: 'Menlo' },
   { label: 'Monaco', value: 'Monaco' },
   { label: 'JetBrains', value: 'JetBrains Mono' },
   { label: 'Fira Code', value: 'Fira Code' },
+  { label: 'IBM Plex', value: 'IBM Plex Mono' },
+  { label: 'Source Code', value: 'Source Code Pro' },
+  { label: 'Cascadia', value: 'Cascadia Code' },
+  { label: 'Courier', value: 'Courier New' },
 ];
 
 const ACCENTS = ['#5068f0', '#2563eb', '#0d9488', '#16a34a', '#ea580c', '#e11d48', '#7c3aed', '#475569'];
@@ -58,6 +68,8 @@ export function SettingsModal() {
   const updateSettings = useStore((state) => state.updateSettings);
   const themeResolved = useStore((state) => state.themeResolved);
   const appInfo = useStore((state) => state.appInfo);
+  const [accentInput, setAccentInput] = useState(settings.accentColor);
+  useEffect(() => setAccentInput(settings.accentColor), [settings.accentColor]);
   const history = useStore((state) => state.history);
   const clearHistory = useStore((state) => state.clearHistory);
   const askConfirm = useStore((state) => state.askConfirm);
@@ -206,14 +218,28 @@ export function SettingsModal() {
                         />
                       ))}
                     </div>
-                    <label className="accent-custom" title="自定义颜色">
+                    <div className="accent-custom">
                       <input
                         type="color"
-                        value={settings.accentColor}
+                        value={/^#[0-9a-f]{6}$/i.test(settings.accentColor) ? settings.accentColor : '#5068f0'}
                         onChange={(event) => updateSettings({ accentColor: event.target.value })}
+                        title="从取色器选择"
                       />
-                      <span>{settings.accentColor.toUpperCase()}</span>
-                    </label>
+                      <input
+                        className="accent-hex"
+                        value={accentInput}
+                        spellCheck={false}
+                        maxLength={7}
+                        placeholder="#5068F0"
+                        onChange={(event) => {
+                          const value = event.target.value.trim();
+                          setAccentInput(value);
+                          const hex = value.startsWith('#') ? value : `#${value}`;
+                          if (/^#[0-9a-f]{6}$/i.test(hex)) updateSettings({ accentColor: hex.toLowerCase() });
+                        }}
+                        onBlur={() => setAccentInput(settings.accentColor)}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="settings-row">

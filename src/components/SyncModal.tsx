@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Search,
   ArrowRight,
   Check,
   Database,
@@ -21,6 +22,7 @@ import type {
   SyncTableOption,
 } from '../types';
 import { formatBytes, formatNumber } from '../lib/format';
+import { fuzzyMatch } from '../lib/fuzzy';
 import { Select } from './Select';
 import { Modal } from './Modal';
 import { Spinner, Switch } from './ui';
@@ -125,9 +127,15 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceId, targetId, sourceDb, targetDb]);
 
-  const rows = useMemo(() => preview?.tables || [], [preview]);
-  const totalBytes = rows.filter((table) => selected.has(table.name)).reduce((sum, table) => sum + table.bytes, 0);
-  const missing = rows.filter((table) => !table.exists && selected.has(table.name)).length;
+  const allRows = useMemo(() => preview?.tables || [], [preview]);
+  const [filter, setFilter] = useState('');
+  const rows = useMemo(() => {
+    const query = filter.trim().toLowerCase();
+    if (!query) return allRows;
+    return allRows.filter((table) => fuzzyMatch(table.name, query));
+  }, [allRows, filter]);
+  const totalBytes = allRows.filter((table) => selected.has(table.name)).reduce((sum, table) => sum + table.bytes, 0);
+  const missing = allRows.filter((table) => !table.exists && selected.has(table.name)).length;
 
   const run = async () => {
     if (!preview || selected.size === 0) return;
@@ -310,14 +318,27 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
           <div className="sync-tables">
             <div className="sync-tables-head">
               <div>
-                <strong>{rows.length} 张表</strong>
+                <strong>{filter ? `${rows.length} / ${allRows.length}` : allRows.length} 张表</strong>
                 <span>{formatBytes(totalBytes)} · 已选 {selected.size} 张</span>
               </div>
               <div className="sync-table-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set(rows.map((table) => table.name)))}>全选</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setSelected((current) => new Set([...current, ...rows.map((table) => table.name)]))}>全选</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>清空</button>
               </div>
             </div>
+            <div className="sync-search">
+              <Search size={12} />
+              <input
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                placeholder="模糊搜索表名，例如 ord 或 oi…"
+                spellCheck={false}
+              />
+              {filter && <button onClick={() => setFilter('')} aria-label="清除搜索"><XCircle size={11} /></button>}
+            </div>
+            {rows.length === 0 ? (
+              <div className="sync-empty">没有匹配的表</div>
+            ) : (
             <div className="sync-table-list">
               {rows.map((table) => {
                 const checked = selected.has(table.name);
@@ -344,6 +365,7 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
                 );
               })}
             </div>
+            )}
             {missing > 0 && (
               <p className="sync-hint">其中 {missing} 张目标表不存在，将按源表结构创建后再写入数据。</p>
             )}

@@ -465,34 +465,41 @@ function ResultPlaceholder() {
 }
 
 function CommandResult({ statement }: { statement: StatementResult }) {
+  const [copied, setCopied] = useState(false);
+  const metrics = [
+    `${statement.affectedRows ?? 0} 行`,
+    formatDuration(statement.durationMs),
+    statement.insertId ? `插入 ID ${statement.insertId}` : '',
+    statement.warnings ? `${statement.warnings} 警告` : '',
+  ].filter(Boolean);
+
   return (
     <div className="command-result">
-      <div className="command-icon">
-        <CheckCircle2 size={26} />
-      </div>
-      <div className="command-copy">
-        <h3>执行成功</h3>
-        <div className="command-stats">
-          <div>
-            <span>影响行数</span>
-            <strong>{statement.affectedRows ?? 0}</strong>
-          </div>
-          <div>
-            <span>耗时</span>
-            <strong>{formatDuration(statement.durationMs)}</strong>
-          </div>
-          {statement.insertId && (
-            <div>
-              <span>插入 ID</span>
-              <strong>{statement.insertId}</strong>
-            </div>
-          )}
-          {Boolean(statement.warnings) && (
-            <div>
-              <span>警告</span>
-              <strong>{statement.warnings}</strong>
-            </div>
-          )}
+      <div className="command-card">
+        <div className="command-head">
+          <span className="command-badge">
+            <CheckCircle2 size={14} />
+            执行成功
+          </span>
+          <span className="command-metrics">
+            {metrics.map((item, index) => (
+              <span key={item}>
+                {index > 0 && <i>·</i>}
+                {item}
+              </span>
+            ))}
+          </span>
+          <button
+            className="command-copy-btn"
+            onClick={() => {
+              navigator.clipboard.writeText(statement.sql);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1400);
+            }}
+          >
+            {copied ? <CheckCircle2 size={11} /> : <ClipboardCopy size={11} />}
+            {copied ? '已复制' : '复制 SQL'}
+          </button>
         </div>
         <pre className="command-sql">{statement.sql}</pre>
         {statement.info && <p className="command-info">{statement.info}</p>}

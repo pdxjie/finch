@@ -62,6 +62,11 @@ export function DatabaseWorkspace({ tab }: { tab: WorkspaceTab }) {
   const [details, setDetails] = useState<TableDetails | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailTab, setDetailTab] = useState<'overview' | 'ddl'>('overview');
+  const [detailWidth, setDetailWidth] = useState(() => {
+    const stored = Number(localStorage.getItem('finch.detailWidth'));
+    return Number.isFinite(stored) && stored >= 320 ? Math.min(760, stored) : 392;
+  });
+  const [resizing, setResizing] = useState(false);
   const detailRequest = useRef(0);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -236,6 +241,26 @@ export function DatabaseWorkspace({ tab }: { tab: WorkspaceTab }) {
   const activeRow = selected || rows[0]?.name;
   const openStructure = (table: TableInfo) => {
     openTable(tab.sessionId, tab.database, table.name, 'structure');
+  };
+
+  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = detailWidth;
+    let latest = startWidth;
+    setResizing(true);
+    const onMove = (move: PointerEvent) => {
+      latest = Math.min(760, Math.max(320, startWidth + (startX - move.clientX)));
+      setDetailWidth(latest);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setResizing(false);
+      localStorage.setItem('finch.detailWidth', String(latest));
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   const selectTable = (name: string) => {
@@ -480,7 +505,7 @@ export function DatabaseWorkspace({ tab }: { tab: WorkspaceTab }) {
                             <span className="dbt-card-icon">{isView ? <Eye size={12} /> : <Table2 size={12} />}</span>
                             <button
                               className="dbt-name"
-                              title={`单击查看 DDL 与明细，双击打开数据${table.comment ? ` · ${table.comment}` : ''}`}
+                              title={table.comment ? `${table.name} · ${table.comment}` : table.name}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 selectTable(table.name);
@@ -524,6 +549,9 @@ export function DatabaseWorkspace({ tab }: { tab: WorkspaceTab }) {
         </div>
         </div>
         <TableDetailPanel
+          width={detailWidth}
+          resizing={resizing}
+          onResizeStart={startResize}
           open={Boolean(selected)}
           info={selectedInfo}
           details={details}
@@ -567,6 +595,9 @@ export function DatabaseWorkspace({ tab }: { tab: WorkspaceTab }) {
 
 function TableDetailPanel({
   open,
+  width,
+  resizing,
+  onResizeStart,
   info,
   details,
   loading,
@@ -578,6 +609,9 @@ function TableDetailPanel({
   onCopy,
 }: {
   open: boolean;
+  width: number;
+  resizing: boolean;
+  onResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void;
   info: TableInfo | null;
   details: TableDetails | null;
   loading: boolean;
@@ -615,7 +649,12 @@ function TableDetailPanel({
   }, [details]);
 
   return (
-    <aside className={clsx('db-detail', open && 'is-open')} aria-hidden={!open}>
+    <aside
+      className={clsx('db-detail', open && 'is-open', resizing && 'is-resizing')}
+      style={{ width: open ? width : 0, flexBasis: open ? width : 0 }}
+      aria-hidden={!open}
+    >
+      <div className="db-detail-resizer" onPointerDown={onResizeStart} title="拖动调整宽度" />
       <div className="db-detail-inner">
         <header className="db-detail-head">
           <span className="db-detail-icon"><Table2 size={14} /></span>

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.23 — Sharper text, visible SQL
+
+- 关闭 `-webkit-font-smoothing: antialiased` 与 `optimizeLegibility`，改用系统默认渲染，Retina 上文字不再发虚
+- 全局最小字号提升到 10px（原 7–9px），并把 540/560 等分数自重量改为 500/600
+- 两套主题的次要文字/弱化文字对比度提高，浅色下小字更清楚
+- 表数据页新增 SQL 预览条：筛选、搜索、增删改后显示实际执行的 SQL，可复制、可关闭
+- 工具栏新增「SQL」按钮，随时查看当前 SELECT（含 WHERE / ORDER BY / LIMIT / OFFSET）
+- 新增行弹窗在提交前实时显示 INSERT 语句；删除确认弹窗显示将执行的 DELETE 语句
+- 单元格编辑成功后显示对应 UPDATE 语句，方便核对与复制
+
 ## 0.3.22 — Reliable field completion
 
 - 修复 `FROM orders WHERE ` 后不弹提示：WHERE / AND / ON / SELECT / SET / HAVING / 逗号等位置输入空格即弹出补全，不再等第一个字符

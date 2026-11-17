@@ -1,6 +1,6 @@
 {
   "name": "finch-mysql",
-  "version": "0.3.22",
+  "version": "0.3.23",
   "private": true,
   "description": "Finch — a fast, beautiful MySQL workbench for macOS.",
   "author": "Finch",

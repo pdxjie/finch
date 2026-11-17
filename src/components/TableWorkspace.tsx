@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
+  Code2,
   Columns3,
   Copy,
   Database,
@@ -35,6 +36,7 @@ import { ResultGrid } from './ResultGrid';
 import { Select } from './Select';
 import { DdlViewer } from './DdlViewer';
 import { formatCreateTable } from '../lib/ddlFormat';
+import { buildDeleteSql, buildInsertSql, buildSelectSql, buildUpdateSql } from '../lib/tableSql';
 import { Modal } from './Modal';
 import { IconButton, Kbd, Segmented, Spinner } from './ui';
 
@@ -61,10 +63,44 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
   const [insertOpen, setInsertOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [sqlPreview, setSqlPreview] = useState('');
+  const [sqlOpen, setSqlOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const data = tab.tableData;
   const query = tab.tableQuery || { limit: PAGE_SIZE, offset: 0, filters: [], search: '', orderBy: null, orderDir: 'asc' as const };
   const readOnly = Boolean(profile?.readOnly);
+  const showSql = (sql: string) => {
+    if (!sql) return;
+    setSqlPreview(sql);
+    setSqlOpen(true);
+  };
+  const keysForRow = (rowIndex: number): Record<string, CellValue> | null => {
+    if (!data) return null;
+    const keys: Record<string, CellValue> = {};
+    for (const key of data.primaryKeys) {
+      const index = data.columns.findIndex((column) => column.name === key);
+      if (index < 0) return null;
+      keys[key] = data.rows[rowIndex]?.[index] ?? null;
+    }
+    return keys;
+  };
+  const currentSelectSql = () =>
+    buildSelectSql(tab.database, tab.table || '', { ...query, limit: query.limit, offset: query.offset }, data?.columnMeta || []);
+  const deleteSql = useMemo(() => {
+    if (!data) return '';
+    const keys = [...selectedRows]
+      .map((rowIndex) => {
+        const entry: Record<string, CellValue> = {};
+        for (const key of data.primaryKeys) {
+          const index = data.columns.findIndex((column) => column.name === key);
+          if (index < 0) return null;
+          entry[key] = data.rows[rowIndex]?.[index] ?? null;
+        }
+        return entry;
+      })
+      .filter((entry): entry is Record<string, CellValue> => entry !== null);
+    return buildDeleteSql(tab.database, tab.table || '', keys);
+  }, [data, selectedRows, tab.database, tab.table]);
   const openTableTool = useStore((state) => state.openTableTool);
   const devView = useStore((state) => state.appInfo?.devView);
   const autoFilter = devView === 'filter';
@@ -89,6 +125,7 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
     if (searchDraft === (tab.tableQuery?.search || '')) return;
     const timer = setTimeout(() => {
       loadTable(tab.id, { search: searchDraft, offset: 0 });
+      showSql(buildSelectSql(tab.database, tab.table || '', { ...query, search: searchDraft, offset: 0 }, data?.columnMeta || []));
     }, 320);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,11 +195,13 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
     });
     setDraftFilters(filters);
     loadTable(tab.id, { filters, offset: 0 });
+    showSql(buildSelectSql(tab.database, tab.table || '', { ...query, filters, offset: 0 }, data?.columnMeta || []));
   };
 
   const clearFilters = () => {
     setDraftFilters([]);
     loadTable(tab.id, { filters: [], offset: 0 });
+    showSql(buildSelectSql(tab.database, tab.table || '', { ...query, filters: [], offset: 0 }, data?.columnMeta || []));
   };
 
   const addFilter = (column: string, op: string, value: string) => {
@@ -172,12 +211,14 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
     setDraftFilters(filters);
     loadTable(tab.id, { filters, offset: 0 });
     setFilterOpen(true);
+    showSql(buildSelectSql(tab.database, tab.table || '', { ...query, filters, offset: 0 }, data?.columnMeta || []));
   };
 
   const removeFilter = (index: number) => {
     const filters = query.filters.filter((_, i) => i !== index);
     setDraftFilters(filters);
     loadTable(tab.id, { filters, offset: 0 });
+    showSql(buildSelectSql(tab.database, tab.table || '', { ...query, filters, offset: 0 }, data?.columnMeta || []));
   };
 
   const selectedValue: CellValue | undefined = selectedCell && data
@@ -317,6 +358,13 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
               <Filter size={13} /> 筛选 {query.filters.length > 0 && <span className="filter-count">{query.filters.length}</span>}
             </button>
             <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => showSql(currentSelectSql())}
+              title="查看当前查询的 SQL"
+            >
+              <Code2 size={13} /> SQL
+            </button>
+            <button
               className={clsx('btn btn-ghost btn-sm filter-btn', textViewOpen && 'is-active')}
               onClick={() => setTextViewOpen((open) => !open)}
               disabled={!canViewText}
@@ -446,7 +494,14 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
                 selectedRows={selectedRows}
                 onToggleRow={toggleRow}
                 onToggleAll={toggleAll}
-                onEdit={(row, column, value) => updateCell(tab.id, row, column, value)}
+                onEdit={async (row, column, value) => {
+                  const columnName = data?.columns[column]?.name;
+                  const keys = keysForRow(row);
+                  const sql = columnName && keys ? buildUpdateSql(tab.database, tab.table || '', columnName, value, keys) : '';
+                  const ok = await updateCell(tab.id, row, column, value);
+                  if (ok) showSql(sql);
+                  return ok;
+                }}
                 onFilterValue={(column, value) => addFilter(column, '=', value)}
                 onViewText={(row, column) => {
                   setSelectedCell({ row, col: column });
@@ -503,6 +558,10 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
             </div>
           </div>
 
+          {sqlOpen && sqlPreview && (
+            <SqlPreviewBar sql={sqlPreview} onClose={() => setSqlOpen(false)} />
+          )}
+
           <div className="table-statusbar">
             <span className={clsx('status-dot', session?.status === 'connected' ? 'status-connected' : 'status-offline')} />
             <span>{session?.status === 'connected' ? '已连接' : '未连接'}</span>
@@ -521,9 +580,14 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
               onClose={() => setInsertOpen(false)}
               columns={data.columnMeta}
               table={tab.table!}
+              database={tab.database}
               onInsert={async (values) => {
+                const sql = buildInsertSql(tab.database, tab.table || '', values);
                 const ok = await insertTableRow(tab.id, values);
-                if (ok) setInsertOpen(false);
+                if (ok) {
+                  setInsertOpen(false);
+                  showSql(sql);
+                }
               }}
             />
           )}
@@ -545,6 +609,7 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
                     if (ok) {
                       setDeleteOpen(false);
                       setSelectedRows(new Set());
+                      showSql(deleteSql);
                     }
                   }}
                 >
@@ -559,6 +624,7 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
                 <span>此操作不可撤销。如果有外键约束，删除可能被数据库拒绝。</span>
               </div>
               <p>将根据主键（{data?.primaryKeys.join(', ')}）逐行删除，每行只会删除一次。</p>
+              {deleteSql && <SqlPreviewBlock label="将执行的 SQL" sql={deleteSql} />}
             </div>
           </Modal>
 
@@ -669,17 +735,68 @@ function TableSkeleton() {
   );
 }
 
+function SqlPreviewBar({ sql, onClose }: { sql: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="table-sql-preview">
+      <div className="table-sql-head">
+        <Code2 size={12} />
+        <strong>SQL</strong>
+        <span className="table-sql-spacer" />
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => {
+            navigator.clipboard.writeText(sql);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          }}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? '已复制' : '复制'}
+        </button>
+        <button className="icon-btn is-compact" onClick={onClose} title="关闭 SQL 预览">
+          <X size={12} />
+        </button>
+      </div>
+      <pre>{sql}</pre>
+    </div>
+  );
+}
+
+function SqlPreviewBlock({ label, sql }: { label: string; sql: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="sql-preview-block">
+      <div className="sql-preview-block-head">
+        <span>{label}</span>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => {
+            navigator.clipboard.writeText(sql);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          }}
+        >
+          {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? '已复制' : '复制'}
+        </button>
+      </div>
+      <pre>{sql}</pre>
+    </div>
+  );
+}
+
 function InsertRowModal({
   open,
   onClose,
   columns,
   table,
+  database,
   onInsert,
 }: {
   open: boolean;
   onClose: () => void;
   columns: ColumnInfo[];
   table: string;
+  database: string;
   onInsert: (values: Record<string, string | null>) => Promise<void>;
 }) {
   const editable = columns.filter((column) => !/GENERATED/i.test(column.extra));
@@ -690,6 +807,15 @@ function InsertRowModal({
   const basic = editable.filter((column) => !column.extra.toLowerCase().includes('auto_increment'));
   const advanced = editable.filter((column) => column.extra.toLowerCase().includes('auto_increment'));
   const visible = showAdvanced ? [...basic, ...advanced] : basic;
+
+  const previewPayload: Record<string, string | null> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) continue;
+    if (nulls.has(key)) previewPayload[key] = null;
+    else if (value !== '') previewPayload[key] = value;
+  }
+  for (const key of nulls) previewPayload[key] = null;
+  const previewSql = buildInsertSql(database, table, previewPayload);
 
   const submit = async () => {
     const payload: Record<string, string | null> = {};
@@ -791,6 +917,9 @@ function InsertRowModal({
             {showAdvanced ? '隐藏' : '显示'}自增字段 ({advanced.length})
           </button>
         )}
+        <div className="insert-sql-preview">
+          <SqlPreviewBlock label="将执行的 SQL" sql={previewSql} />
+        </div>
       </div>
     </Modal>
   );

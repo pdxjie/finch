@@ -36,9 +36,17 @@ Finch 最初是一版 Electron 原型。功能能跑，但**安装包 128 MB、�
 
 ## 安装
 
+从 [GitHub Releases](https://github.com/pdxjie/finch/releases) 下载最新的 `Finch-*-arm64.dmg`，打开后把 Finch 拖进「应用程序」。
+
+也可以从源码构建（需要 Node.js 20+、Rust 1.80+、Xcode Command Line Tools）：
+
 ```bash
-open release/Finch-0.3.20-arm64.dmg
+npm install
+npm run package:mac
+open src-tauri/target/release/bundle/dmg/Finch_0.3.20_aarch64.dmg
 ```
+
+> 仓库不提交构建产物；`release/`、`dist/`、`src-tauri/target/` 都在 `.gitignore` 中。
 
 当前为本地 ad-hoc 签名构建，首次打开若被 macOS 拦截，右键 `Finch.app` → **打开**。
 

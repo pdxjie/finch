@@ -2,6 +2,8 @@ import type { Completion, CompletionContext, CompletionResult } from '@codemirro
 import { useStore } from '../store';
 import type { ColumnInfo } from '../types';
 
+const reloadRequests = new Map<string, number>();
+
 /** Chinese explanations for the keywords people actually type. */
 const KEYWORDS: Record<string, string> = {
   SELECT: '查询数据，后面跟要返回的列',
@@ -296,8 +298,110 @@ function cleanIdent(value: string) {
   return value.replace(/`/g, '');
 }
 
+/** Only the statement containing the caret matters for aliases and tables. */
+function currentStatementRange(text: string, cursor: number): { start: number; end: number } {
+  let start = 0;
+  let quote = '';
+  const ranges: { start: number; end: number }[] = [];
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === '\\' && quote !== '`') i += 1;
+      else if (ch === quote) {
+        if (text[i + 1] === quote) i += 1;
+        else quote = '';
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') quote = ch;
+    else if (ch === ';') {
+      ranges.push({ start, end: i });
+      start = i + 1;
+    }
+  }
+  ranges.push({ start, end: text.length });
+  return ranges.find((range) => cursor >= range.start && cursor <= range.end) || ranges[ranges.length - 1];
+}
+
+function currentStatement(text: string): string {
+  let start = 0;
+  let quote = '';
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === '\\' && quote !== '`') i += 1;
+      else if (ch === quote) {
+        if (text[i + 1] === quote) i += 1;
+        else quote = '';
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') quote = ch;
+    else if (ch === '-' && text[i + 1] === '-' && (text[i + 2] === ' ' || text[i + 2] === '\n' || text[i + 2] === undefined)) {
+      const end = text.indexOf('\n', i);
+      i = end === -1 ? text.length : end;
+    } else if (ch === '#') {
+      const end = text.indexOf('\n', i);
+      i = end === -1 ? text.length : end;
+    } else if (ch === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      i = end === -1 ? text.length : end + 2;
+    } else if (ch === ';') {
+      start = i + 1;
+    }
+  }
+  return text.slice(start);
+}
+
+/** Replace comments and quoted literals so keywords inside them cannot be
+ * mistaken for tables. Backtick identifiers are preserved. */
+function maskSql(sql: string): string {
+  let output = '';
+  let quote = '';
+  for (let i = 0; i < sql.length; i += 1) {
+    const ch = sql[i];
+    if (quote) {
+      if (ch === '\\' && quote !== '`') {
+        output += '  ';
+        i += 1;
+      } else if (ch === quote) {
+        output += quote === '`' ? ch : ' ';
+        if (sql[i + 1] === quote) {
+          output += ' ';
+          i += 1;
+        } else {
+          quote = '';
+        }
+      } else {
+        output += ch === '`' ? ch : ' ';
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      output += ch === '`' ? ch : ' ';
+    } else if (ch === '-' && sql[i + 1] === '-' && (sql[i + 2] === ' ' || sql[i + 2] === '\n' || sql[i + 2] === undefined)) {
+      const end = sql.indexOf('\n', i);
+      i = (end === -1 ? sql.length : end) - 1;
+      output += ' ';
+    } else if (ch === '#') {
+      const end = sql.indexOf('\n', i);
+      i = (end === -1 ? sql.length : end) - 1;
+      output += ' ';
+    } else if (ch === '/' && sql[i + 1] === '*') {
+      const end = sql.indexOf('*/', i + 2);
+      i = (end === -1 ? sql.length : end + 1);
+      output += ' ';
+    } else {
+      output += ch;
+    }
+  }
+  return output;
+}
+
 /** Guess what the user is about to type, and collect FROM/JOIN aliases. */
-export function readQueryContext(textBefore: string): QueryContext {
+export function readQueryContext(textBefore: string, fullText = textBefore): QueryContext {
+  const masked = maskSql(fullText);
   const tail = textBefore.slice(-80);
   const aliases: Record<string, string> = {};
   const tables: string[] = [];
@@ -314,7 +418,7 @@ export function readQueryContext(textBefore: string): QueryContext {
   };
   const aliasPattern = /\b(?:from|join|update|into)\s+((?:`[^`]+`|[\w$]+)(?:\s*\.\s*(?:`[^`]+`|[\w$]+))?)(?:\s+(?:as\s+)?((?!(?:where|join|left|right|inner|outer|cross|on|using|group|order|limit|offset|union|having|set|values|and|or|as|natural|straight_join|force|use|ignore)\b)`?[\w$]+`?))?/gi;
   let match: RegExpExecArray | null;
-  while ((match = aliasPattern.exec(textBefore))) {
+  while ((match = aliasPattern.exec(masked))) {
     addTable(match[1], match[2] || '');
   }
   // A JOIN/UPDATE table can also appear after a newline with no alias; the
@@ -382,7 +486,11 @@ function columnTip(column: ColumnInfo, table: string) {
 
 export function finchCompletions(context: CompletionContext): CompletionResult | null {
   const word = context.matchBefore(/[A-Za-z0-9_$`.]*/);
-  if (!word || (word.from === word.to && !context.explicit)) return null;
+  const before = context.state.sliceDoc(Math.max(0, context.pos - 100), context.pos);
+  // After WHERE / AND / ON / SELECT etc. open the popup immediately instead of
+  // waiting for the first character (which made it feel like it never fired).
+  const expectsValue = /(?:\bwhere|\band|\bor|\bon|\bselect|\bset|\bhaving|\bby|\busing|\bvalues|\breturning|,|\()\s*$/i.test(before);
+  if (!word || (word.from === word.to && !context.explicit && !expectsValue)) return null;
   const raw = word.text;
   const dotIndex = raw.lastIndexOf('.');
   const qualifier = dotIndex >= 0 ? cleanIdent(raw.slice(0, dotIndex)) : '';
@@ -393,15 +501,18 @@ export function finchCompletions(context: CompletionContext): CompletionResult |
   const tab = state.tabs.find((item) => item.id === state.activeTabId);
   const sessionId = tab?.sessionId;
   const database = tab?.database || '';
-  const statement = context.state.sliceDoc(0, context.pos);
-  const query = readQueryContext(statement);
+  const doc = context.state.doc.toString();
+  const statement = currentStatement(context.state.sliceDoc(0, context.pos));
+  const range = currentStatementRange(doc, context.pos);
+  const query = readQueryContext(statement, doc.slice(range.start, range.end));
   const activeQualifier = qualifier || query.qualifier;
   const aliases = query.aliases;
 
   const options: Completion[] = [];
   const seen = new Set<string>();
   const push = (completion: Completion) => {
-    const key = `${completion.type}:${completion.label}`;
+    const table = completion.type === 'property' ? String(completion.detail || '').split(' · ')[0] : '';
+    const key = `${completion.type}:${table}:${completion.label}`;
     if (seen.has(key)) return;
     seen.add(key);
     options.push(completion);
@@ -413,13 +524,22 @@ export function finchCompletions(context: CompletionContext): CompletionResult |
   const allColumns = sessionId ? state.columns[`${sessionId}::${database}`] : undefined;
 
   const tableNames = new Set([...tables, ...views].map((item) => item.name));
+  const canonicalTable = (name: string) => {
+    if (!name) return '';
+    const lowered = name.toLowerCase();
+    return [...tableNames].find((item) => item.toLowerCase() === lowered) || name;
+  };
   const aliasTarget = activeQualifier && aliases[activeQualifier] ? aliases[activeQualifier] : '';
   const qualifierIsTable = activeQualifier && (tableNames.has(activeQualifier) || Boolean(aliasTarget));
-  const qualifierTable = aliasTarget || (qualifierIsTable ? activeQualifier : '');
+  const qualifierTable = canonicalTable(aliasTarget || (qualifierIsTable ? activeQualifier : ''));
 
   const columnsFor = (table: string): ColumnInfo[] => {
-    const cached = allColumns?.[table];
-    if (cached?.length) return cached;
+    const direct = allColumns?.[table];
+    if (direct?.length) return direct;
+    if (allColumns) {
+      const key = Object.keys(allColumns).find((item) => item.toLowerCase() === table.toLowerCase());
+      if (key && allColumns[key]?.length) return allColumns[key];
+    }
     for (const item of state.tabs) {
       if (item.kind !== 'table' || item.table !== table || item.sessionId !== sessionId) continue;
       if (item.tableData?.columnMeta?.length) return item.tableData.columnMeta;
@@ -429,8 +549,8 @@ export function finchCompletions(context: CompletionContext): CompletionResult |
   };
 
   const mentionedTables = new Set<string>();
-  for (const table of query.tables) mentionedTables.add(table);
-  for (const table of Object.values(aliases)) mentionedTables.add(table);
+  for (const table of query.tables) mentionedTables.add(canonicalTable(table));
+  for (const table of Object.values(aliases)) mentionedTables.add(canonicalTable(table));
   if (qualifierTable) mentionedTables.add(qualifierTable);
 
   if (qualifierTable) {
@@ -444,10 +564,17 @@ export function finchCompletions(context: CompletionContext): CompletionResult |
         info: () => columnTip(column, qualifierTable),
       });
     }
-  } else if (query.mode !== 'table') {
-    const columnTables = mentionedTables.size
-      ? [...mentionedTables]
-      : [...tableNames].slice(0, 40);
+  } else if (query.mode !== 'table' && mentionedTables.size > 0) {
+    const columnTables = [...mentionedTables];
+    if (sessionId && database && allColumns) {
+      const missing = columnTables.some((table) => tableNames.has(table) && !columnsFor(table).length);
+      const key = `${sessionId}::${database}`;
+      const last = reloadRequests.get(key) || 0;
+      if (missing && Date.now() - last > 15000) {
+        reloadRequests.set(key, Date.now());
+        state.loadAllColumns(sessionId, database, true).catch(() => {});
+      }
+    }
     for (const table of columnTables) {
       const mentioned = mentionedTables.has(table);
       const primary = mentioned && (mentionedTables.size === 1 || query.tables[0] === table);
@@ -476,7 +603,7 @@ export function finchCompletions(context: CompletionContext): CompletionResult |
     }
   }
 
-  const tableBoost = query.mode === 'table' ? 70 : 24;
+  const tableBoost = query.mode === 'table' ? 95 : 24;
   for (const table of tables) {
     push({
       label: table.name,

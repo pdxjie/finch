@@ -502,17 +502,16 @@ export const useStore = create<Store>((set, get) => ({
       await Promise.all([
         get().loadTables(sessionId, database, 'table', true),
         get().loadTables(sessionId, database, 'view', true),
+        get().loadAllColumns(sessionId, database, true),
       ]);
     } else {
-      const dbs = get().databases[sessionId] || [];
+      const dbs = (get().databases[sessionId] || []).filter((db) => !db.isSystem).slice(0, 12);
       await Promise.all(
-        dbs
-          .filter((db) => !db.isSystem)
-          .slice(0, 12)
-          .flatMap((db) => [
-            get().loadTables(sessionId, db.name, 'table', true),
-            get().loadTables(sessionId, db.name, 'view', true),
-          ]),
+        dbs.flatMap((db) => [
+          get().loadTables(sessionId, db.name, 'table', true),
+          get().loadTables(sessionId, db.name, 'view', true),
+          get().loadAllColumns(sessionId, db.name, true),
+        ]),
       );
     }
   },

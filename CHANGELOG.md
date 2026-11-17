@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.22 — Reliable field completion
+
+- 修复 `FROM orders WHERE ` 后不弹提示：WHERE / AND / ON / SELECT / SET / HAVING / 逗号等位置输入空格即弹出补全，不再等第一个字符
+- 补全只看**当前语句**：前面语句的 FROM/JOIN 不再污染字段；`SELECT ` 写在 `FROM` 前面时也能解析出后面的表
+- 解析时屏蔽注释与字符串字面量，`-- from customers` 不会被当成表；表名匹配改为大小写不敏感
+- 修复 JOIN 关键字被误当别名，`FROM orders JOIN order_items oi ON` 现在能同时给出两张表的字段
+- 字段去重按「表 + 字段」，JOIN 中同名字段会分别显示来源表
+- 打开查询页预取表、视图与全部字段；执行建表/改表后刷新字段缓存，新列立刻可补全
+- 新增 `Ctrl-Space` 手动唤起补全
+
 ## 0.3.21 — Interaction polish
 
 - 执行成功结果改为紧凑状态卡：一行显示影响行数 / 耗时 / 插入 ID，SQL 预览可一键复制，不再是居中大图标 + 大号数字

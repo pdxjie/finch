@@ -139,6 +139,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(function Sq
         placeholder('SELECT * FROM …   —   ⌘↵ 运行'),
         keymap.of([
           {
+            key: 'Ctrl-Space',
+            run: startCompletion,
+          },
+          {
             key: 'Tab',
             run: (view) => {
               if (completionStatus(view.state) === 'active') return acceptCompletion(view);
@@ -233,6 +237,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(function Sq
     if (!tab?.sessionId || !tab.database) return;
     state.loadAllColumns(tab.sessionId, tab.database).catch(() => {});
     state.loadTables(tab.sessionId, tab.database).catch(() => {});
+    state.loadTables(tab.sessionId, tab.database, 'view').catch(() => {});
   }, [tabId, sessionId, database]);
 
   useEffect(() => {

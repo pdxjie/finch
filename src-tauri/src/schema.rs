@@ -520,6 +520,48 @@ pub async fn update_cell(state: &AppState, payload: UpdateCellPayload) -> Result
     Ok(conn.affected_rows())
 }
 
+pub async fn update_cells(state: &AppState, payload: UpdateCellsPayload) -> Result<u64, String> {
+    state.ensure_writable(&payload.session_id)?;
+    if payload.rows.is_empty() {
+        return Ok(0);
+    }
+    let session = state.session(&payload.session_id)?;
+    let details = get_table_details(state, &payload.session_id, &payload.database, &payload.table).await?;
+    if details.primary_keys.is_empty() {
+        return Err("这张表没有主键，已禁用批量更新".into());
+    }
+    if !details.columns.iter().any(|column| column.name == payload.column) {
+        return Err("未知列".into());
+    }
+    let mut conn = session.pool.get_conn().await.map_err(|e| e.to_string())?;
+    let mut tx = conn.start_transaction(TxOpts::default()).await.map_err(|e| e.to_string())?;
+    let mut affected = 0u64;
+    for keys in &payload.rows {
+        let mut params = vec![json_param(&payload.value)];
+        let mut conditions = Vec::new();
+        for key in &details.primary_keys {
+            let value = keys.get(key).ok_or_else(|| "缺少主键值".to_string())?;
+            conditions.push(format!("{} = ?", quote_id(key)));
+            params.push(json_param(value));
+        }
+        let sql = format!(
+            "UPDATE {} SET {} = ? WHERE {} LIMIT 1",
+            qualify(&payload.database, &payload.table),
+            quote_id(&payload.column),
+            conditions.join(" AND ")
+        );
+        match tx.exec_drop(sql, Params::Positional(params)).await {
+            Ok(_) => affected += tx.affected_rows(),
+            Err(error) => {
+                let _ = tx.rollback().await;
+                return Err(error.to_string());
+            }
+        }
+    }
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(affected)
+}
+
 pub async fn delete_rows(state: &AppState, payload: DeleteRowsPayload) -> Result<u64, String> {
     state.ensure_writable(&payload.session_id)?;
     let session = state.session(&payload.session_id)?;

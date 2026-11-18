@@ -172,6 +172,8 @@ function createApi(): FinchyAPI {
         wrap(invokeSafe<{ affectedRows: number }>('update_cell', { payload })),
       deleteRows: (payload) =>
         wrap(invokeSafe<{ deleted: number }>('delete_rows', { payload })),
+      updateCells: (payload) =>
+        wrap(invokeSafe<{ affectedRows: number }>('update_cells', { payload })),
       insertRow: (payload) =>
         wrap(invokeSafe<{ insertId: string | null; affectedRows: number }>('insert_row', { payload })),
     },

@@ -32,6 +32,7 @@ interface ResultGridProps {
   selectedRows?: Set<number>;
   onToggleRow?: (index: number) => void;
   onToggleAll?: () => void;
+  onSelectRange?: (from: number, to: number, additive: boolean) => void;
   onEdit?: (rowIndex: number, columnIndex: number, value: string | null) => Promise<boolean>;
   onFilterValue?: (column: string, value: string) => void;
   onViewText?: (rowIndex: number, columnIndex: number) => void;
@@ -178,6 +179,7 @@ export function ResultGrid({
   selectedRows,
   onToggleRow,
   onToggleAll,
+  onSelectRange,
   onEdit,
   onFilterValue,
   onViewText,
@@ -201,6 +203,19 @@ export function ResultGrid({
   const columnsRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const editingRef = useRef<{ row: number; col: number } | null>(null);
+  const dragAnchor = useRef<number | null>(null);
+
+  useEffect(() => {
+    const stop = () => {
+      dragAnchor.current = null;
+    };
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+    return () => {
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+    };
+  }, []);
   const columnSignature = useMemo(
     () => columns.map((column, index) => `${index}:${column.name}:${column.type}`).join('|'),
     [columns],
@@ -437,6 +452,23 @@ export function ResultGrid({
               <div
                 key={virtualRow.key}
                 className={clsx('grid-row', selected && 'is-selected')}
+                onPointerDown={(event) => {
+                  if (!selectable || !onSelectRange) return;
+                  const target = event.target as HTMLElement;
+                  if (target.closest('button, input, textarea')) return;
+                  dragAnchor.current = entry.index;
+                  if (target.closest('.grid-select-cell, .grid-row-number')) {
+                    onSelectRange(entry.index, entry.index, event.metaKey || event.ctrlKey);
+                  }
+                }}
+                onPointerOver={() => {
+                  if (dragAnchor.current === null || !onSelectRange) return;
+                  onSelectRange(dragAnchor.current, entry.index, true);
+                }}
+                onPointerEnter={() => {
+                  if (dragAnchor.current === null || !onSelectRange) return;
+                  onSelectRange(dragAnchor.current, entry.index, true);
+                }}
                 style={{
                   transform: `translateY(${virtualRow.start}px)`,
                   height: rowHeight,

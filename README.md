@@ -43,7 +43,7 @@ Finch 最初是一版 Electron 原型。功能能跑，但**安装包 128 MB、�
 ```bash
 npm install
 npm run package:mac
-open src-tauri/target/release/bundle/dmg/Finch_0.4.2_aarch64.dmg
+open src-tauri/target/release/bundle/dmg/Finch_0.5.0_aarch64.dmg
 ```
 
 > 仓库不提交构建产物；`release/`、`dist/`、`src-tauri/target/` 都在 `.gitignore` 中。
@@ -109,6 +109,8 @@ open src-tauri/target/release/bundle/dmg/Finch_0.4.2_aarch64.dmg
 - **显示 / 隐藏任意结果列**，列选择器按查询结果独立保存
 - **查看文本**：选中单元格后在底部推起一个抽屉展示完整内容，自动识别 JSON 并格式化，不遮挡数据
 - 表数据服务端分页、**内联筛选面板**、搜索；单页默认 200 行，可调
+- 查询结果提供「结果 / 消息 / 摘要 / 执行计划」四个视图，消息为左对齐纯文本
+- 表格支持拖动多选行后批量修改同一列，单事务执行并显示 SQL
 - 筛选、新增、删除、更新后**在底部显示实际 SQL**，SQL 末尾有复制按钮，超长时省略、悬停看全文；工具栏可随时查看当前 SELECT
 - 打开表时先出数据、`COUNT(*)` 后台补总数，大表不再等统计完成
 - 筛选条件支持中文运算符：等于、不等于、包含、开头是、是 NULL、介于、在列表中…

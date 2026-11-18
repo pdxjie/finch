@@ -1,6 +1,6 @@
 [package]
 name = "finch"
-version = "0.4.2"
+version = "0.5.0"
 description = "Finch — a fast, local-first MySQL workbench for macOS"
 authors = ["Finch"]
 license = "MIT"

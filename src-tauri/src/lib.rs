@@ -74,6 +74,7 @@ pub fn run() {
             commands::count_table_rows,
             commands::list_all_columns,
             commands::update_cell,
+            commands::update_cells,
             commands::delete_rows,
             commands::insert_row,
             commands::server_overview,

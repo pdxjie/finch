@@ -39,7 +39,7 @@ import { formatCreateTable } from '../lib/ddlFormat';
 import { buildDeleteSql, buildInsertSql, buildSelectSql, buildUpdateSql } from '../lib/tableSql';
 import { isProdProfile } from '../lib/prodConfirm';
 import { Modal } from './Modal';
-import { IconButton, Kbd, Segmented, Spinner } from './ui';
+import { IconButton, Kbd, Segmented, Spinner, Switch } from './ui';
 
 const PAGE_SIZE = 200;
 
@@ -50,6 +50,7 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
   const updateCell = useStore((state) => state.updateCell);
   const deleteTableRows = useStore((state) => state.deleteTableRows);
   const insertTableRow = useStore((state) => state.insertTableRow);
+  const updateTableCells = useStore((state) => state.updateTableCells);
   const confirmProduction = useStore((state) => state.confirmProduction);
   const toast = useStore((state) => state.toast);
   const session = useStore((state) => state.sessions[tab.sessionId]);
@@ -63,6 +64,11 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [textViewOpen, setTextViewOpen] = useState(false);
   const [insertOpen, setInsertOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchColumn, setBatchColumn] = useState('');
+  const [batchValue, setBatchValue] = useState('');
+  const [batchNull, setBatchNull] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [sqlPreview, setSqlPreview] = useState('');
@@ -103,6 +109,17 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
       .filter((entry): entry is Record<string, CellValue> => entry !== null);
     return buildDeleteSql(tab.database, tab.table || '', keys);
   }, [data, selectedRows, tab.database, tab.table]);
+  const batchSql = useMemo(() => {
+    if (!data || !batchColumn) return '';
+    const value = batchNull ? null : batchValue;
+    return [...selectedRows]
+      .map((rowIndex) => {
+        const keys = keysForRow(rowIndex);
+        return keys ? buildUpdateSql(tab.database, tab.table || '', batchColumn, value, keys) : '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }, [data, selectedRows, batchColumn, batchValue, batchNull, tab.database, tab.table]);
   const openTableTool = useStore((state) => state.openTableTool);
   const devView = useStore((state) => state.appInfo?.devView);
   const autoFilter = devView === 'filter';
@@ -295,6 +312,19 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
               <IconButton icon={RefreshCw} label="刷新数据" size={15} onClick={() => loadTable(tab.id)} />
               <button className="btn btn-ghost btn-sm" onClick={() => setInsertOpen(true)} disabled={readOnly}>
                 <Plus size={13} /> 新增行
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  const first = data?.columns.find((column) => !data.primaryKeys.includes(column.name))?.name || data?.columns[0]?.name || '';
+                  setBatchColumn(first);
+                  setBatchValue('');
+                  setBatchNull(false);
+                  setBatchOpen(true);
+                }}
+                disabled={readOnly || selectedRows.size === 0}
+              >
+                <PencilLine size={13} /> 批量修改
               </button>
               <button
                 className="btn btn-ghost btn-sm"
@@ -494,6 +524,15 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
                 editable={!readOnly && data.primaryKeys.length > 0}
                 selectable
                 selectedRows={selectedRows}
+                onSelectRange={(from, to, additive) => {
+                  setSelectedRows((current) => {
+                    const next = additive ? new Set(current) : new Set<number>();
+                    const start = Math.min(from, to);
+                    const end = Math.max(from, to);
+                    for (let index = start; index <= end; index += 1) next.add(index);
+                    return next;
+                  });
+                }}
                 onToggleRow={toggleRow}
                 onToggleAll={toggleAll}
                 onEdit={async (row, column, value) => {
@@ -593,7 +632,15 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
               database={tab.database}
               onInsert={async (values) => {
                 const sql = buildInsertSql(tab.database, tab.table || '', values);
-                const ok = await insertTableRow(tab.id, values);
+                if (isProdProfile(profile)) {
+                  const confirmed = await confirmProduction({
+                    title: '生产环境：确认新增',
+                    message: `即将向 ${tab.database}.${tab.table} 插入 1 行数据。`,
+                    sql,
+                  });
+                  if (!confirmed) return;
+                }
+                const ok = await insertTableRow(tab.id, values, isProdProfile(profile));
                 if (ok) {
                   setInsertOpen(false);
                   showSql(sql);
@@ -601,6 +648,77 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
               }}
             />
           )}
+
+          <Modal
+            open={batchOpen}
+            onClose={() => setBatchOpen(false)}
+            title={`批量修改 ${selectedRows.size} 行`}
+            subtitle={`${tab.database}.${tab.table} · 同一列的相同值`}
+            icon={<PencilLine size={17} />}
+            size="md"
+            footer={
+              <>
+                <span className="modal-foot-hint">按主键逐行更新，全部成功才提交</span>
+                <span className="modal-foot-spacer" />
+                <button className="btn btn-ghost" onClick={() => setBatchOpen(false)} disabled={batchBusy}>取消</button>
+                <button
+                  className="btn btn-primary"
+                  disabled={batchBusy || !batchColumn}
+                  onClick={async () => {
+                    if (isProdProfile(profile)) {
+                      const confirmed = await confirmProduction({
+                        title: '生产环境：确认批量更新',
+                        message: `即将批量更新 ${tab.database}.${tab.table} 的 ${selectedRows.size} 行。`,
+                        sql: batchSql,
+                      });
+                      if (!confirmed) return;
+                    }
+                    setBatchBusy(true);
+                    const ok = await updateTableCells(tab.id, [...selectedRows], batchColumn, batchNull ? null : batchValue, isProdProfile(profile));
+                    setBatchBusy(false);
+                    if (ok) {
+                      setBatchOpen(false);
+                      setSelectedRows(new Set());
+                      showSql(batchSql);
+                    }
+                  }}
+                >
+                  {batchBusy ? <Loader2 size={13} className="spin" /> : <Check size={13} />} 更新 {selectedRows.size} 行
+                </button>
+              </>
+            }
+          >
+            <div className="batch-edit">
+              <div className="settings-row">
+                <div><strong>要修改的列</strong><p>所有选中行都会写入同一个值。</p></div>
+                <Select
+                  className="settings-select"
+                  value={batchColumn}
+                  width={190}
+                  onChange={setBatchColumn}
+                  options={(data?.columns || []).map((column) => ({
+                    value: column.name,
+                    label: column.name,
+                    hint: column.type,
+                  }))}
+                />
+              </div>
+              <div className="settings-row">
+                <div><strong>新值</strong><p>留空会写入空字符串；需要 NULL 请打开右侧开关。</p></div>
+                <div className="batch-value">
+                  <input
+                    value={batchValue}
+                    disabled={batchNull}
+                    onChange={(event) => setBatchValue(event.target.value)}
+                    placeholder="输入新的值"
+                    spellCheck={false}
+                  />
+                  <label className="sync-option sync-switch"><span>NULL</span><Switch checked={batchNull} onChange={setBatchNull} /></label>
+                </div>
+              </div>
+              <SqlPreviewBlock label={`将执行的 SQL · ${selectedRows.size} 条`} sql={batchSql} />
+            </div>
+          </Modal>
 
           <Modal
             open={deleteOpen}

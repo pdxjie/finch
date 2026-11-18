@@ -118,7 +118,7 @@ pub fn has_dangerous_sql(sql: &str) -> bool {
             let word = sql[start..at].to_ascii_uppercase();
             if matches!(
                 word.as_str(),
-                "UPDATE" | "DELETE" | "DROP" | "ALTER" | "TRUNCATE" | "RENAME" | "REPLACE"
+                "INSERT" | "UPDATE" | "DELETE" | "DROP" | "ALTER" | "TRUNCATE" | "RENAME" | "REPLACE" | "CREATE" | "LOAD" | "GRANT" | "REVOKE"
             ) {
                 return true;
             }

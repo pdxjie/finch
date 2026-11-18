@@ -155,7 +155,8 @@ interface Store {
   setTableView: (tabId: string, view: 'data' | 'structure') => Promise<void>;
   updateCell: (tabId: string, rowIndex: number, columnIndex: number, value: string | null, confirmed?: boolean) => Promise<boolean>;
   deleteTableRows: (tabId: string, rowIndexes: number[], confirmed?: boolean) => Promise<boolean>;
-  insertTableRow: (tabId: string, values: Record<string, string | null>) => Promise<boolean>;
+  updateTableCells: (tabId: string, rowIndexes: number[], column: string, value: string | null, confirmed?: boolean) => Promise<boolean>;
+  insertTableRow: (tabId: string, values: Record<string, string | null>, confirmed?: boolean) => Promise<boolean>;
 
   refreshHistory: () => Promise<void>;
   clearHistory: () => Promise<void>;
@@ -1088,6 +1089,43 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
+  updateTableCells: async (tabId, rowIndexes, column, value, confirmed = false) => {
+    const tab = get().tabs.find((item) => item.id === tabId);
+    if (!tab?.tableData || !tab.table) return false;
+    const data = tab.tableData;
+    if (!data.primaryKeys.length) {
+      get().toast('warning', '这张表没有主键', '无法安全地批量更新。');
+      return false;
+    }
+    const rows = rowIndexes.map((rowIndex) => {
+      const entry: Record<string, string | number | null> = {};
+      for (const key of data.primaryKeys) {
+        const index = data.columns.findIndex((item) => item.name === key);
+        const cell = data.rows[rowIndex]?.[index];
+        if (cell && typeof cell === 'object') throw new Error('Binary primary keys are not supported');
+        entry[key] = cell;
+      }
+      return entry;
+    });
+    try {
+      const result = await api().data.updateCells({
+        sessionId: tab.sessionId,
+        database: tab.database,
+        table: tab.table,
+        column,
+        value,
+        rows,
+        prodConfirmed: confirmed,
+      });
+      get().toast('success', '批量更新完成', `${result.affectedRows} 行已更新。`);
+      await get().loadTable(tabId);
+      return true;
+    } catch (err) {
+      get().toast('error', '批量更新失败', errorText(err));
+      return false;
+    }
+  },
+
   deleteTableRows: async (tabId, rowIndexes, confirmed = false) => {
     const tab = get().tabs.find((item) => item.id === tabId);
     if (!tab?.tableData || !tab.table) return false;
@@ -1123,7 +1161,7 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
-  insertTableRow: async (tabId, values) => {
+  insertTableRow: async (tabId, values, confirmed = false) => {
     const tab = get().tabs.find((item) => item.id === tabId);
     if (!tab || !tab.table) return false;
     try {
@@ -1132,6 +1170,7 @@ export const useStore = create<Store>((set, get) => ({
         database: tab.database,
         table: tab.table,
         values,
+        prodConfirmed: confirmed,
       });
       get().toast('success', '已新增一行', result.insertId ? `主键 ${result.insertId}` : '记录已写入。');
       await get().loadTable(tabId);

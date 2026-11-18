@@ -329,6 +329,19 @@ pub struct UpdateCellPayload {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct UpdateCellsPayload {
+    pub session_id: String,
+    pub database: String,
+    pub table: String,
+    pub column: String,
+    pub value: serde_json::Value,
+    pub rows: Vec<serde_json::Map<String, serde_json::Value>>,
+    #[serde(default)]
+    pub prod_confirmed: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct DeleteRowsPayload {
     pub session_id: String,
     pub database: String,
@@ -345,6 +358,8 @@ pub struct InsertRowPayload {
     pub database: String,
     pub table: String,
     pub values: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    pub prod_confirmed: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]

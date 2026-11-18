@@ -319,6 +319,15 @@ pub async fn update_cell(
 }
 
 #[tauri::command]
+pub async fn update_cells(
+    state: State<'_, AppState>,
+    payload: UpdateCellsPayload,
+) -> Result<u64, String> {
+    require_prod_confirm(&state, &payload.session_id, payload.prod_confirmed, "批量更新表数据")?;
+    schema::update_cells(&state, payload).await
+}
+
+#[tauri::command]
 pub async fn delete_rows(
     state: State<'_, AppState>,
     payload: DeleteRowsPayload,

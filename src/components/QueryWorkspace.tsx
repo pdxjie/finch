@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store';
-import type { QueryResult, ResultColumn, StatementResult, WorkspaceTab } from '../types';
+import type { CellValue, QueryResult, ResultColumn, StatementResult, WorkspaceTab } from '../types';
 import { formatDuration } from '../lib/format';
 import { SqlEditor, type SqlEditorHandle } from './SqlEditor';
 import { ResultGrid } from './ResultGrid';
@@ -66,6 +66,36 @@ export function QueryWorkspace({ tab }: { tab: WorkspaceTab }) {
     Math.max(0, (tab.result?.statements.length || 1) - 1),
   );
   const statement = tab.result?.statements[activeStatementIndex];
+  const [resultView, setResultView] = useState<'result' | 'message' | 'summary' | 'plan'>('result');
+  const [plan, setPlan] = useState<{ columns: ResultColumn[]; rows: CellValue[][] } | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState('');
+  const resultId = tab.result?.executionId;
+
+  useEffect(() => {
+    if (!tab.result) {
+      setResultView('result');
+      setPlan(null);
+      return;
+    }
+    setPlan(null);
+    setPlanError('');
+    setResultView(tab.result.statements.some((item) => item.kind === 'rows') ? 'result' : 'message');
+  }, [resultId]);
+
+  useEffect(() => {
+    if (resultView !== 'plan' || !tab.result) return;
+    const sql = (statement?.sql || tab.sql).trim();
+    if (!sql) return;
+    setPlanLoading(true);
+    setPlanError('');
+    window.finch.query
+      .explain({ sessionId: tab.sessionId, database: tab.database, sql })
+      .then((result) => setPlan({ columns: result.columns, rows: result.rows }))
+      .catch((error) => setPlanError(error instanceof Error ? error.message : String(error)))
+      .finally(() => setPlanLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultView, resultId]);
 
   const run = (mode: 'statement' | 'all' = 'statement') => {
     const sql = editorRef.current?.getRunnable(mode) || tab.sql;
@@ -296,29 +326,23 @@ export function QueryWorkspace({ tab }: { tab: WorkspaceTab }) {
 
       <div className="result-pane">
         <div className="result-header">
-          <div className="result-tabs">
-            {tab.result?.statements.map((item, index) => (
+          <div className="result-tabs result-view-tabs">
+            {([
+              { id: 'result', label: '结果' },
+              { id: 'message', label: '消息' },
+              { id: 'summary', label: '摘要' },
+              { id: 'plan', label: '执行计划' },
+            ] as const).map((item) => (
               <button
-                key={index}
-                className={clsx('result-tab', index === activeStatementIndex && 'is-active', item.kind === 'error' && 'is-error')}
-                onClick={() => updateTab(tab.id, { resultIndex: index })}
+                key={item.id}
+                className={clsx('result-tab', resultView === item.id && 'is-active')}
+                onClick={() => setResultView(item.id)}
+                disabled={!tab.result && item.id !== 'result'}
               >
-                {item.kind === 'rows' ? (
-                  <Table2 size={12} />
-                ) : item.kind === 'error' ? (
-                  <XCircle size={12} />
-                ) : (
-                  <CheckCircle2 size={12} />
-                )}
-                {item.kind === 'rows'
-                  ? `结果 ${tab.result!.statements.slice(0, index + 1).filter((entry) => entry.kind === 'rows').length}`
-                  : item.kind === 'error'
-                    ? '错误'
-                    : '消息'}
-                {item.kind === 'rows' && <span className="result-tab-count">{item.rowCount.toLocaleString()}</span>}
+                {item.label}
               </button>
             ))}
-            {!tab.result && <span className="result-tab-placeholder">结果</span>}
+            {!tab.result && <span className="result-tab-placeholder">尚未执行</span>}
           </div>
 
           <div className="result-actions">
@@ -368,6 +392,22 @@ export function QueryWorkspace({ tab }: { tab: WorkspaceTab }) {
           </div>
         </div>
 
+        {resultView === 'result' && tab.result && tab.result.statements.length > 1 && (
+          <div className="result-statement-tabs">
+            {tab.result.statements.map((item, index) => (
+              <button
+                key={index}
+                className={clsx('result-tab', index === activeStatementIndex && 'is-active', item.kind === 'error' && 'is-error')}
+                onClick={() => updateTab(tab.id, { resultIndex: index })}
+              >
+                {item.kind === 'rows' ? <Table2 size={12} /> : item.kind === 'error' ? <XCircle size={12} /> : <CheckCircle2 size={12} />}
+                {item.kind === 'rows' ? `结果 ${index + 1}` : item.kind === 'error' ? '错误' : '消息'}
+                {item.kind === 'rows' && <span className="result-tab-count">{item.rowCount.toLocaleString()}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="result-body">
           {tab.result?.cancelled && (
             <div className="cancel-banner">
@@ -381,6 +421,12 @@ export function QueryWorkspace({ tab }: { tab: WorkspaceTab }) {
             <ErrorPanel message={tab.error} />
           ) : !tab.result ? (
             <ResultPlaceholder />
+          ) : resultView === 'message' ? (
+            <MessagePanel statements={tab.result.statements} />
+          ) : resultView === 'summary' ? (
+            <SummaryPanel statements={tab.result.statements} />
+          ) : resultView === 'plan' ? (
+            <PlanPanel plan={plan} loading={planLoading} error={planError} onRefresh={() => setResultView('result')} />
           ) : statement?.kind === 'error' && statement.error ? (
             <ErrorPanel
               message={statement.error.message}
@@ -389,7 +435,7 @@ export function QueryWorkspace({ tab }: { tab: WorkspaceTab }) {
               sql={statement.sql}
             />
           ) : statement?.kind === 'command' ? (
-            <CommandResult statement={statement} />
+            <MessagePanel statements={[statement]} />
           ) : statement?.kind === 'rows' ? (
             <div className="result-grid-wrap">
               {statement.truncated && (
@@ -464,46 +510,106 @@ function ResultPlaceholder() {
   );
 }
 
-function CommandResult({ statement }: { statement: StatementResult }) {
-  const [copied, setCopied] = useState(false);
-  const metrics = [
-    `${statement.affectedRows ?? 0} 行`,
-    formatDuration(statement.durationMs),
-    statement.insertId ? `插入 ID ${statement.insertId}` : '',
-    statement.warnings ? `${statement.warnings} 警告` : '',
-  ].filter(Boolean);
-
+function MessagePanel({ statements }: { statements: StatementResult[] }) {
   return (
-    <div className="command-result">
-      <div className="command-card">
-        <div className="command-head">
-          <span className="command-badge">
-            <CheckCircle2 size={14} />
-            执行成功
-          </span>
-          <span className="command-metrics">
-            {metrics.map((item, index) => (
-              <span key={item}>
-                {index > 0 && <i>·</i>}
-                {item}
-              </span>
-            ))}
-          </span>
-          <button
-            className="command-copy-btn"
-            onClick={() => {
-              navigator.clipboard.writeText(statement.sql);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1400);
-            }}
-          >
-            {copied ? <CheckCircle2 size={11} /> : <ClipboardCopy size={11} />}
-            {copied ? '已复制' : '复制 SQL'}
-          </button>
-        </div>
-        <pre className="command-sql">{statement.sql}</pre>
-        {statement.info && <p className="command-info">{statement.info}</p>}
+    <div className="result-messages">
+      {statements.map((statement, index) => (
+        <StatementMessage key={index} statement={statement} index={index} />
+      ))}
+    </div>
+  );
+}
+
+function StatementMessage({ statement, index }: { statement: StatementResult; index: number }) {
+  const success = statement.kind !== 'error';
+  return (
+    <section className="statement-message">
+      <div className="statement-message-head">
+        <span className={clsx('statement-state', success ? 'is-ok' : 'is-error')}>
+          {success ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+          {success ? (statement.kind === 'rows' ? '查询成功' : '执行成功') : '执行失败'}
+        </span>
+        <span>语句 {index + 1}</span>
+        <span>耗时 {formatDuration(statement.durationMs)}</span>
+        {statement.kind === 'rows' ? (
+          <span>{statement.rowCount.toLocaleString()} 行</span>
+        ) : (
+          <span>影响 {statement.affectedRows ?? 0} 行</span>
+        )}
+        {statement.insertId ? <span>插入 ID {statement.insertId}</span> : null}
+        {statement.warnings ? <span className="statement-warning">{statement.warnings} 警告</span> : null}
       </div>
+      {statement.error && (
+        <p className="statement-error">
+          {statement.error.message}
+          {statement.error.code ? ` (${statement.error.code})` : ''}
+        </p>
+      )}
+      <pre className="statement-sql">{statement.sql}</pre>
+      {statement.info && <p className="statement-info">{statement.info}</p>}
+    </section>
+  );
+}
+
+function SummaryPanel({ statements }: { statements: StatementResult[] }) {
+  const rows = statements.reduce((sum, item) => sum + (item.kind === 'rows' ? item.rowCount : 0), 0);
+  return (
+    <div className="result-summary">
+      <table className="result-summary-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>状态</th>
+            <th>类型</th>
+            <th>返回行</th>
+            <th>影响行</th>
+            <th>耗时</th>
+            <th>SQL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {statements.map((statement, index) => (
+            <tr key={index} className={statement.kind === 'error' ? 'is-error' : undefined}>
+              <td>{index + 1}</td>
+              <td>{statement.kind === 'error' ? '失败' : '成功'}</td>
+              <td>{statement.kind === 'rows' ? '查询' : statement.kind === 'command' ? '命令' : '错误'}</td>
+              <td>{statement.kind === 'rows' ? statement.rowCount.toLocaleString() : '—'}</td>
+              <td>{statement.affectedRows ?? '—'}</td>
+              <td>{formatDuration(statement.durationMs)}</td>
+              <td className="summary-sql" title={statement.sql}>{statement.sql.replace(/\s+/g, ' ').slice(0, 120)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="result-summary-foot">
+        共 {statements.length} 条语句 · 返回 {rows.toLocaleString()} 行
+      </div>
+    </div>
+  );
+}
+
+function PlanPanel({
+  plan,
+  loading,
+  error,
+}: {
+  plan: { columns: ResultColumn[]; rows: CellValue[][] } | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+}) {
+  if (loading) {
+    return <div className="result-message-state"><Loader2 size={14} className="spin" /> 正在读取执行计划…</div>;
+  }
+  if (error) {
+    return <div className="result-message-state is-error"><XCircle size={14} /> {error}</div>;
+  }
+  if (!plan) {
+    return <div className="result-message-state">执行查询后可查看 EXPLAIN 结果。</div>;
+  }
+  return (
+    <div className="result-grid-wrap">
+      <ResultGrid columns={plan.columns} rows={plan.rows} emptyLabel="没有执行计划" />
     </div>
   );
 }

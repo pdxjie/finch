@@ -562,11 +562,21 @@ export interface FinchyAPI {
       rows: Record<string, CellValue>[];
       prodConfirmed?: boolean;
     }) => Promise<{ deleted: number }>;
+    updateCells: (payload: {
+      sessionId: string;
+      database: string;
+      table: string;
+      column: string;
+      value: CellValue;
+      rows: Record<string, CellValue>[];
+      prodConfirmed?: boolean;
+    }) => Promise<{ affectedRows: number }>;
     insertRow: (payload: {
       sessionId: string;
       database: string;
       table: string;
       values: Record<string, CellValue>;
+      prodConfirmed?: boolean;
     }) => Promise<{ insertId: string | null; affectedRows: number }>;
   };
   ai: {

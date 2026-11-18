@@ -43,7 +43,7 @@ Finch 最初是一版 Electron 原型。功能能跑，但**安装包 128 MB、�
 ```bash
 npm install
 npm run package:mac
-open src-tauri/target/release/bundle/dmg/Finch_0.4.0_aarch64.dmg
+open src-tauri/target/release/bundle/dmg/Finch_0.4.1_aarch64.dmg
 ```
 
 > 仓库不提交构建产物；`release/`、`dist/`、`src-tauri/target/` 都在 `.gitignore` 中。

@@ -9675,3 +9675,200 @@ html[data-motion='off'] .loading-bars span {
 .lan-table:hover { background: var(--surface-2); }
 .lan-table.is-checked { background: var(--accent-soft); color: var(--text); }
 .lan-table .grid-check { width: 13px; height: 13px; opacity: 1; }
+
+/* ================================================================
+   LAN transfer animations
+   ================================================================ */
+@keyframes lan-ring {
+  0% { transform: scale(0.45); opacity: 0.55; }
+  70% { opacity: 0.12; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+@keyframes lan-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes lan-dot {
+  0% { transform: translateX(-8px); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateX(8px); opacity: 0; }
+}
+@keyframes lan-rise {
+  from { opacity: 0; transform: translateY(6px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes lan-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(220%); }
+}
+@keyframes lan-pop {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes lan-live {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 40%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--green) 0%, transparent); }
+}
+
+.lan-status.is-on::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: lan-live 2s ease-out infinite;
+}
+
+.lan-radar {
+  position: relative;
+  height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.lan-radar-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin-left: -46px;
+  margin-top: -46px;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  animation: lan-ring 2.8s ease-out infinite;
+}
+.lan-radar-ring:nth-child(2) { animation-delay: 0.9s; }
+.lan-radar-ring:nth-child(3) { animation-delay: 1.8s; }
+.lan-radar-core {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  animation: lan-float 2.4s ease-in-out infinite;
+  z-index: 1;
+}
+.lan-radar p {
+  margin: 0;
+  font-size: 9.5px;
+  color: var(--text-faint);
+  z-index: 1;
+}
+
+.lan-peer {
+  animation: lan-rise 0.24s cubic-bezier(0.22, 0.82, 0.24, 1) both;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.lan-peer:hover { transform: translateX(2px); }
+.lan-peer.is-active { animation: lan-rise 0.24s both, lan-float 3s ease-in-out 0.3s infinite; }
+
+.lan-accept-peer {
+  animation: lan-rise 0.26s cubic-bezier(0.22, 0.82, 0.24, 1) both;
+}
+.lan-accept-peer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent, color-mix(in srgb, var(--accent) 12%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: lan-shimmer 2.6s ease-in-out infinite;
+}
+.lan-accept-peer { position: relative; overflow: hidden; }
+
+.lan-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line-faint);
+  background: linear-gradient(120deg, var(--surface-2), var(--surface));
+  animation: lan-rise 0.28s cubic-bezier(0.22, 0.82, 0.24, 1) both;
+}
+.lan-link-node { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lan-link-node span { font-size: 8.5px; color: var(--text-faint); }
+.lan-link-node strong {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lan-link-track {
+  flex: 1;
+  position: relative;
+  height: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--line));
+  overflow: hidden;
+}
+.lan-link-track i {
+  position: absolute;
+  top: -1px;
+  width: 5px;
+  height: 4px;
+  border-radius: 3px;
+  background: var(--accent);
+  animation: lan-dot 1.6s ease-in-out infinite;
+}
+.lan-link-track i:nth-child(2) { animation-delay: 0.5s; }
+.lan-link-track i:nth-child(3) { animation-delay: 1s; }
+.lan-link-arrow {
+  position: absolute;
+  right: -2px;
+  top: -8px;
+  font-size: 10px;
+  color: var(--accent);
+  background: var(--surface);
+  padding: 0 2px;
+}
+
+.lan-progress { animation: lan-rise 0.22s both; }
+.lan-progress > div:first-child span { display: inline-flex; align-items: center; gap: 5px; }
+.lan-progress.is-done > div:first-child span { color: var(--green); }
+.lan-progress.is-done > div:first-child span svg { animation: lan-pop 0.3s cubic-bezier(0.22, 0.82, 0.24, 1) both; }
+.lan-progress.is-error > div:first-child span { color: var(--red); }
+.lan-progress.is-error .lan-progress-bar span { background: var(--red); }
+.lan-progress-bar { position: relative; }
+.lan-progress-bar span {
+  position: relative;
+  overflow: hidden;
+  transition: width 0.2s linear;
+}
+.lan-progress-bar span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: lan-shimmer 1.5s ease-in-out infinite;
+}
+.lan-progress.is-done .lan-progress-bar span::after { animation: none; }
+
+.lan-table.is-checked .grid-check { animation: lan-pop 0.22s ease-out both; }
+.lan-table { transition: background 0.12s ease, color 0.12s ease; }
+.lan-table:active { transform: scale(0.99); }
+.lan-send-row .btn-primary { transition: transform 0.12s ease, box-shadow 0.18s ease; }
+.lan-send-row .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 25%, transparent); }
+
+/* Respect the global motion preference */
+html[data-motion='off'] .lan-radar-ring,
+html[data-motion='off'] .lan-radar-core,
+html[data-motion='off'] .lan-link-track i,
+html[data-motion='off'] .lan-accept-peer::after,
+html[data-motion='off'] .lan-progress-bar span::after { animation: none !important; }
+html[data-motion='reduced'] .lan-radar-ring,
+html[data-motion='reduced'] .lan-link-track i { animation-duration: 3.5s !important; }

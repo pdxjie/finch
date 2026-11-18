@@ -8,7 +8,6 @@ import {
   MonitorSmartphone,
   Send,
   Unplug,
-  Users,
   Wifi,
   X,
 } from 'lucide-react';
@@ -121,13 +120,22 @@ export function LanSettings() {
             <p>选择对方，再选择你这次要使用的连接与数据库。</p>
           </div>
           {status?.peers.length === 0 ? (
-            <div className="lan-empty"><Users size={16} /> 暂未发现同一局域网内的设备</div>
+            <div className="lan-radar">
+              <span className="lan-radar-ring" />
+              <span className="lan-radar-ring" />
+              <span className="lan-radar-ring" />
+              <div className="lan-radar-core">
+                <Wifi size={16} />
+              </div>
+              <p>正在寻找附近设备…</p>
+            </div>
           ) : (
             <div className="lan-peers">
-              {status?.peers.map((item) => (
+              {status?.peers.map((item, index) => (
                 <button
                   key={item.id}
                   className={clsx('lan-peer', peer === item.id && 'is-active')}
+                  style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
                   onClick={() => setPeer(item.id)}
                 >
                   <MonitorSmartphone size={15} />
@@ -381,6 +389,24 @@ export function LanSessionDialog() {
       }
     >
       <div className="lan-session">
+        <div className="lan-link">
+          <div className="lan-link-node">
+            <MonitorSmartphone size={15} />
+            <span>我的连接</span>
+            <strong>{session.myDatabase}</strong>
+          </div>
+          <div className="lan-link-track">
+            <i />
+            <i />
+            <i />
+            <span className="lan-link-arrow">⇄</span>
+          </div>
+          <div className="lan-link-node">
+            <MonitorSmartphone size={15} />
+            <span>对方连接</span>
+            <strong>{session.peerConnection}</strong>
+          </div>
+        </div>
         <div className="lan-session-meta">
           <div><span>我的连接</span><strong>{session.myDatabase}</strong></div>
           <div><span>对方连接</span><strong>{session.peerConnection} · {session.peerDatabase}</strong></div>
@@ -395,12 +421,15 @@ export function LanSessionDialog() {
         </div>
 
         {progress && (
-          <div className="lan-progress">
+          <div className={clsx('lan-progress', progress.kind === 'done' && 'is-done', progress.kind === 'error' && 'is-error')}>
             <div>
-              <span>{progress.kind === 'done' ? '已完成' : progress.kind === 'table' ? '表传输' : '传输中'} · {progress.name}</span>
+              <span>
+                {progress.kind === 'done' ? <Check size={11} /> : progress.kind === 'error' ? <X size={11} /> : null}
+                {progress.kind === 'done' ? '已完成' : progress.kind === 'error' ? '传输失败' : progress.kind === 'table' ? '表传输' : '传输中'} · {progress.name}
+              </span>
               <strong>{progress.total ? `${percent}%` : formatNumber(progress.done)}</strong>
             </div>
-            <div className="lan-progress-bar"><span style={{ width: `${progress.total ? percent : 0}%` }} /></div>
+            <div className="lan-progress-bar"><span style={{ width: `${progress.total ? percent : 100}%` }} /></div>
           </div>
         )}
 

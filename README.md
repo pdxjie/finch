@@ -43,7 +43,7 @@ Finch 最初是一版 Electron 原型。功能能跑，但**安装包 128 MB、�
 ```bash
 npm install
 npm run package:mac
-open src-tauri/target/release/bundle/dmg/Finch_0.3.23_aarch64.dmg
+open src-tauri/target/release/bundle/dmg/Finch_0.3.24_aarch64.dmg
 ```
 
 > 仓库不提交构建产物；`release/`、`dist/`、`src-tauri/target/` 都在 `.gitignore` 中。
@@ -83,6 +83,7 @@ open src-tauri/target/release/bundle/dmg/Finch_0.3.23_aarch64.dmg
 - SSH 隧道（私钥认证）、TLS
 - 密码与 API Key 写入 **macOS Keychain**，配置文件不含明文
 - 只读模式（Rust 统一校验，覆盖 CTE 写语句、可执行注释、文件导出；保存后立即生效）
+- **生产环境二次确认**：UPDATE / DELETE / DROP / ALTER / TRUNCATE 等危险操作，无论表内操作还是手写 SQL，都必须确认；后端同样强制校验
 - 每连接独立心跳间隔，尊重「自动重连」开关；手动断开后旧心跳不会把连接拉回来
 - 连接行悬停可一键**断开**（停止心跳、关闭 SSH 隧道、释放连接池与带宽）；右键菜单与命令面板同样提供
 - 连接超时、Keep-alive 间隔
@@ -108,9 +109,10 @@ open src-tauri/target/release/bundle/dmg/Finch_0.3.23_aarch64.dmg
 - **显示 / 隐藏任意结果列**，列选择器按查询结果独立保存
 - **查看文本**：选中单元格后在底部推起一个抽屉展示完整内容，自动识别 JSON 并格式化，不遮挡数据
 - 表数据服务端分页、**内联筛选面板**、搜索；单页默认 200 行，可调
-- 筛选、新增、删除、更新后**在底部显示实际 SQL**，可一键复制；工具栏可随时查看当前 SELECT
+- 筛选、新增、删除、更新后**在底部显示实际 SQL**，SQL 末尾有复制按钮，超长时省略、悬停看全文；工具栏可随时查看当前 SELECT
 - 打开表时先出数据、`COUNT(*)` 后台补总数，大表不再等统计完成
 - 筛选条件支持中文运算符：等于、不等于、包含、开头是、是 NULL、介于、在列表中…
+- 索引列表显示方法类型（BTREE / HASH / FULLTEXT / SPATIAL）与联合索引列顺序
 - 查询线程可 `KILL QUERY` 取消
 - CodeMirror 6 + MySQL 方言补全
 - **中文 SQL 代码提示**：关键字、函数、表、视图、字段都带中文说明、函数签名和**可直接照抄的示例 SQL**

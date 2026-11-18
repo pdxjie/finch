@@ -19,6 +19,15 @@ fn public_profile(mut profile: ConnectionProfile) -> ConnectionProfile {
     profile
 }
 
+fn require_prod_confirm(state: &AppState, session_id: &str, confirmed: bool, action: &str) -> Result<(), String> {
+    if let Ok(session) = state.session(session_id) {
+        if session.profile.category.eq_ignore_ascii_case("prod") && !confirmed {
+            return Err(format!("生产环境二次确认未完成：{action}"));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn app_info(app: AppHandle) -> serde_json::Value {
     json!({
@@ -241,6 +250,9 @@ pub async fn execute_query(
     state: State<'_, AppState>,
     payload: QueryPayload,
 ) -> Result<QueryResult, String> {
+    if crate::sql::has_dangerous_sql(&payload.sql) {
+        require_prod_confirm(&state, &payload.session_id, payload.prod_confirmed, "危险 SQL 执行")?;
+    }
     if let Some(session) = state.sessions.lock().unwrap().get(&payload.session_id).cloned() {
         let _ = app.emit("finch://event", json!({"type":"session:ping","id":session.id,"latency":session.latency}));
     }
@@ -544,6 +556,7 @@ pub async fn alter_table(
     state: State<'_, AppState>,
     request: AlterTableRequest,
 ) -> Result<String, String> {
+    require_prod_confirm(&state, &request.session_id, request.prod_confirmed, "修改表结构")?;
     crate::ddl::alter_table(&state, request).await
 }
 
@@ -553,7 +566,9 @@ pub async fn drop_table(
     session_id: String,
     database: String,
     table: String,
+    prod_confirmed: Option<bool>,
 ) -> Result<String, String> {
+    require_prod_confirm(&state, &session_id, prod_confirmed.unwrap_or(false), "删除表结构")?;
     crate::ddl::drop_table(&state, &session_id, &database, &table).await
 }
 

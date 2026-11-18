@@ -150,6 +150,7 @@ pub struct IndexInfo {
     pub unique: bool,
     pub sequence: i64,
     pub cardinality: Option<i64>,
+    #[serde(rename = "type")]
     pub index_type: String,
     pub nullable: bool,
     pub comment: String,
@@ -271,6 +272,8 @@ pub struct QueryPayload {
     pub max_rows: Option<usize>,
     pub auto_limit: Option<bool>,
     pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub prod_confirmed: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -320,6 +323,8 @@ pub struct UpdateCellPayload {
     pub column: String,
     pub value: serde_json::Value,
     pub keys: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    pub prod_confirmed: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -329,6 +334,8 @@ pub struct DeleteRowsPayload {
     pub database: String,
     pub table: String,
     pub rows: Vec<serde_json::Map<String, serde_json::Value>>,
+    #[serde(default)]
+    pub prod_confirmed: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -617,6 +624,8 @@ pub struct AlterTableRequest {
     pub modify_indexes: Vec<DdlIndex>,
     #[serde(default)]
     pub drop_indexes: Vec<String>,
+    #[serde(default)]
+    pub prod_confirmed: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]

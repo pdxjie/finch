@@ -239,7 +239,16 @@ export function ResultGrid({
   }, [columns, rows]);
 
   useEffect(() => {
-    if (editing) requestAnimationFrame(() => editInputRef.current?.select());
+    if (!editing) return;
+    requestAnimationFrame(() => {
+      const input = editInputRef.current;
+      if (!input) return;
+      input.focus();
+      const end = input.value.length;
+      // Enter edit mode with the caret at the end instead of selecting all:
+      // double-click should let people tweak the existing value.
+      input.setSelectionRange(end, end);
+    });
   }, [editing]);
 
   useEffect(() => {
@@ -465,6 +474,7 @@ export function ResultGrid({
                       )}
                       title={value === null ? 'NULL' : typeof value === 'object' ? `BLOB · ${value.size} bytes` : String(value)}
                       onClick={() => {
+                        if (isEditing) return;
                         setSelectedCell({ row: virtualRow.index, col: colIndex });
                         onSelectCell?.(entry.index, colIndex, value);
                         shellRef.current?.focus();
@@ -490,6 +500,8 @@ export function ResultGrid({
                           <input
                             ref={editInputRef}
                             defaultValue={editing.value}
+                            onClick={(event) => event.stopPropagation()}
+                            onDoubleClick={(event) => event.stopPropagation()}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter') {
                                 commitEdit((event.target as HTMLInputElement).value);

@@ -98,6 +98,37 @@ pub fn validate_read_only(sql: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn has_dangerous_sql(sql: &str) -> bool {
+    let bytes = sql.as_bytes();
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at..].starts_with(b"/*!") || bytes[at..].starts_with(b"/*M!") {
+            return true;
+        } else if matches!(bytes[at], b'\'' | b'"' | b'`') {
+            at = quoted_end(bytes, at);
+        } else if let Some(end) = comment_end(bytes, at) {
+            at = end;
+        } else if bytes[at].is_ascii_alphabetic() || bytes[at] == b'_' {
+            let start = at;
+            while at < bytes.len()
+                && (bytes[at].is_ascii_alphanumeric() || matches!(bytes[at], b'_' | b'$') || bytes[at] >= 128)
+            {
+                at += 1;
+            }
+            let word = sql[start..at].to_ascii_uppercase();
+            if matches!(
+                word.as_str(),
+                "UPDATE" | "DELETE" | "DROP" | "ALTER" | "TRUNCATE" | "RENAME" | "REPLACE"
+            ) {
+                return true;
+            }
+        } else {
+            at += 1;
+        }
+    }
+    false
+}
+
 pub fn split_statements(input: &str) -> Vec<String> {
     let bytes = input.as_bytes();
     let mut statements = Vec::new();
@@ -154,6 +185,16 @@ pub fn split_statements(input: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dangerous_sql_detection_covers_cte_and_ignores_literals() {
+        assert!(has_dangerous_sql("UPDATE t SET a=1"));
+        assert!(has_dangerous_sql("WITH x AS (SELECT 1) DELETE FROM t"));
+        assert!(has_dangerous_sql("DROP TABLE t"));
+        assert!(has_dangerous_sql("/*!50000 DROP TABLE t */"));
+        assert!(!has_dangerous_sql("SELECT 'DELETE', `update` FROM t"));
+        assert!(!has_dangerous_sql("-- DELETE FROM t\nSELECT 1"));
+    }
 
     #[test]
     fn read_only_gate_covers_cte_and_executable_comments() {

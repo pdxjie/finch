@@ -358,6 +358,7 @@ export interface CreateTableRequest {
 }
 
 export interface AlterTableRequest {
+  prodConfirmed?: boolean;
   sessionId: string;
   database: string;
   table: string;
@@ -513,6 +514,7 @@ export interface FinchyAPI {
       maxRows?: number;
       autoLimit?: boolean;
       timeoutMs?: number;
+      prodConfirmed?: boolean;
     }) => Promise<QueryResult>;
     cancel: (executionId: string, sessionId: string) => Promise<{ cancelled: boolean }>;
     explain: (payload: { sessionId: string; sql: string; database: string }) => Promise<{
@@ -551,12 +553,14 @@ export interface FinchyAPI {
       column: string;
       value: CellValue;
       keys: Record<string, CellValue>;
+      prodConfirmed?: boolean;
     }) => Promise<{ affectedRows: number }>;
     deleteRows: (payload: {
       sessionId: string;
       database: string;
       table: string;
       rows: Record<string, CellValue>[];
+      prodConfirmed?: boolean;
     }) => Promise<{ deleted: number }>;
     insertRow: (payload: {
       sessionId: string;
@@ -590,7 +594,7 @@ export interface FinchyAPI {
   ddl: {
     createTable: (request: CreateTableRequest) => Promise<string>;
     alterTable: (request: AlterTableRequest) => Promise<string>;
-    dropTable: (payload: { sessionId: string; database: string; table: string }) => Promise<string>;
+    dropTable: (payload: { sessionId: string; database: string; table: string; prodConfirmed?: boolean }) => Promise<string>;
   };
   dump: (request: DumpRequest) => Promise<{ saved: boolean; path: string; tables: number; files?: string[]; split?: boolean }>;
   server: {

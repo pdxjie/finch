@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { streamedSql } from './lib/aiStreaming';
 import { applyVisualSettings, visualZoom } from './lib/visual';
+import { hasDangerousSql, isProdProfile } from './lib/prodConfirm';
 import type {
   AppInfo,
   AppSettings,
@@ -65,7 +66,9 @@ export interface ConfirmOptions {
   detail?: string;
   confirmLabel?: string;
   danger?: boolean;
+  sql?: string;
   onConfirm: () => void | Promise<void>;
+  onCancel?: () => void;
 }
 
 interface Store {
@@ -141,8 +144,8 @@ interface Store {
   loadTable: (tabId: string, query?: Partial<TableQuery>) => Promise<void>;
   loadStructure: (tabId: string, force?: boolean) => Promise<void>;
   setTableView: (tabId: string, view: 'data' | 'structure') => Promise<void>;
-  updateCell: (tabId: string, rowIndex: number, columnIndex: number, value: string | null) => Promise<boolean>;
-  deleteTableRows: (tabId: string, rowIndexes: number[]) => Promise<boolean>;
+  updateCell: (tabId: string, rowIndex: number, columnIndex: number, value: string | null, confirmed?: boolean) => Promise<boolean>;
+  deleteTableRows: (tabId: string, rowIndexes: number[], confirmed?: boolean) => Promise<boolean>;
   insertTableRow: (tabId: string, values: Record<string, string | null>) => Promise<boolean>;
 
   refreshHistory: () => Promise<void>;
@@ -161,6 +164,7 @@ interface Store {
   setModal: (modal: ModalKind, connection?: ConnectionProfile | null) => void;
   setSaveQueryState: (state: SaveQueryState | null) => void;
   askConfirm: (options: ConfirmOptions) => void;
+  confirmProduction: (options: { title: string; message: string; sql?: string }) => Promise<boolean>;
   closeConfirm: () => void;
 
   toast: (level: ToastLevel, title: string, message?: string) => void;
@@ -770,6 +774,16 @@ export const useStore = create<Store>((set, get) => ({
     get().updateTab(tabId, { preparingQuery: false });
     const started = Date.now();
     try {
+      const profile = get().connections.find((item) => item.id === tab.sessionId);
+      const dangerousOnProd = Boolean(isProdProfile(profile) && hasDangerousSql(sql));
+      if (dangerousOnProd) {
+        const confirmed = await get().confirmProduction({
+          title: '生产环境危险操作',
+          message: `即将在 ${profile?.name || tab.sessionId} / ${tab.database} 执行会修改数据的 SQL。`,
+          sql,
+        });
+        if (!confirmed) return;
+      }
       const result = await api().query.execute({
         sessionId: tab.sessionId,
         sql,
@@ -778,6 +792,7 @@ export const useStore = create<Store>((set, get) => ({
         maxRows: get().settings.maxRows,
         autoLimit: get().settings.autoLimitSelects,
         timeoutMs: (get().settings.queryTimeoutSeconds || 0) * 1000,
+        prodConfirmed: dangerousOnProd,
       });
       if (get().tabs.find((item) => item.id === tabId)?.executionId !== executionId) return;
       let resultIndex = result.statements.findIndex((item) => item.kind === 'rows');
@@ -988,7 +1003,7 @@ export const useStore = create<Store>((set, get) => ({
     if (view === 'structure') await get().loadStructure(tabId);
   },
 
-  updateCell: async (tabId, rowIndex, columnIndex, value) => {
+  updateCell: async (tabId, rowIndex, columnIndex, value, confirmed = false) => {
     const tab = get().tabs.find((item) => item.id === tabId);
     if (!tab?.tableData || !tab.table) return false;
     const data = tab.tableData;
@@ -1017,6 +1032,7 @@ export const useStore = create<Store>((set, get) => ({
         column,
         value,
         keys,
+        prodConfirmed: confirmed,
       });
       const rows = data.rows.map((row) => [...row]);
       rows[rowIndex][columnIndex] = value;
@@ -1029,7 +1045,7 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
-  deleteTableRows: async (tabId, rowIndexes) => {
+  deleteTableRows: async (tabId, rowIndexes, confirmed = false) => {
     const tab = get().tabs.find((item) => item.id === tabId);
     if (!tab?.tableData || !tab.table) return false;
     const data = tab.tableData;
@@ -1053,6 +1069,7 @@ export const useStore = create<Store>((set, get) => ({
         database: tab.database,
         table: tab.table,
         rows: keys,
+        prodConfirmed: confirmed,
       });
       get().toast('success', '已删除', `${result.deleted} 行已从 ${tab.table} 删除。`);
       await get().loadTable(tabId);
@@ -1146,6 +1163,21 @@ export const useStore = create<Store>((set, get) => ({
   setModal: (modal, connection = null) => set({ modal, editingConnection: connection || null }),
   setSaveQueryState: (state) => set({ saveQueryState: state, modal: state ? 'save-query' : null }),
   askConfirm: (options) => set({ confirmState: options }),
+  confirmProduction: (options) =>
+    new Promise((resolve) => {
+      set({
+        confirmState: {
+          title: options.title,
+          message: options.message,
+          detail: '生产环境操作，需要二次确认',
+          confirmLabel: '我已确认，执行',
+          danger: true,
+          sql: options.sql,
+          onConfirm: () => resolve(true),
+          onCancel: () => resolve(false),
+        },
+      });
+    }),
   closeConfirm: () => set({ confirmState: null }),
 
   toast: (level, title, message) => {

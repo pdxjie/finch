@@ -27,7 +27,10 @@ export function ConfirmDialog() {
     <Modal
       open
       onClose={() => {
-        if (!busy) close();
+        if (!busy) {
+          state.onCancel?.();
+          close();
+        }
       }}
       title={state.title}
       subtitle={state.detail}
@@ -37,7 +40,7 @@ export function ConfirmDialog() {
         <>
           <span className="modal-foot-hint">此操作不会同步到其他设备</span>
           <span className="modal-foot-spacer" />
-          <button className="btn btn-ghost" onClick={close} disabled={busy}>取消</button>
+          <button className="btn btn-ghost" onClick={() => { state.onCancel?.(); close(); }} disabled={busy}>取消</button>
           <button autoFocus className={state.danger === false ? 'btn btn-primary' : 'btn btn-danger'} onClick={confirm} disabled={busy}>
             {busy ? <Loader2 size={13} className="spin" /> : null}
             {state.confirmLabel || '确认'}
@@ -50,6 +53,7 @@ export function ConfirmDialog() {
           <AlertTriangle size={16} />
           <span>{state.message}</span>
         </div>
+        {state.sql && <pre className="confirm-sql">{state.sql}</pre>}
       </div>
     </Modal>
   );

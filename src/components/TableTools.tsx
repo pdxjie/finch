@@ -21,6 +21,7 @@ import { Select } from './Select';
 import { Modal } from './Modal';
 import { Segmented, Switch } from './ui';
 import { DdlViewer } from './DdlViewer';
+import { isProdProfile } from '../lib/prodConfirm';
 
 type EditableColumn = DdlColumn & {
   key: string;
@@ -307,6 +308,15 @@ export function TableDesignerModal() {
           setSaving(false);
           return;
         }
+        const prod = isProdProfile(useStore.getState().connections.find((item) => item.id === state.sessionId));
+        if (prod) {
+          const confirmed = await useStore.getState().confirmProduction({
+            title: '生产环境：确认修改表结构',
+            message: `即将修改 ${state.database}.${table} 的结构（可能删除字段或索引）。`,
+            sql: `ALTER TABLE \`${state.database}\`.\`${table}\` ...`,
+          });
+          if (!confirmed) return;
+        }
         await window.finch.ddl.alterTable({
           sessionId: state.sessionId,
           database: state.database,
@@ -318,6 +328,7 @@ export function TableDesignerModal() {
           addIndexes: indexChanges.add,
           modifyIndexes: indexChanges.modify,
           dropIndexes: indexChanges.drop,
+          prodConfirmed: prod,
         });
         toast('success', '表结构已更新', `${state.database}.${table}`);
         await refreshSchema(state.sessionId, state.database);
@@ -351,7 +362,16 @@ export function TableDesignerModal() {
                   detail: '表结构和全部数据都会永久删除。',
                   confirmLabel: '删除表',
                   onConfirm: async () => {
-                    await window.finch.ddl.dropTable({ sessionId: state.sessionId, database: state.database, table });
+                    let prodConfirmed = false;
+                    if (isProdProfile(useStore.getState().connections.find((item) => item.id === state.sessionId))) {
+                      prodConfirmed = await useStore.getState().confirmProduction({
+                        title: '生产环境：确认删除表',
+                        message: `即将永久删除 ${state.database}.${table} 及其全部数据。`,
+                        sql: `DROP TABLE \`${state.database}\`.\`${table}\`;`,
+                      });
+                      if (!prodConfirmed) return;
+                    }
+                    await window.finch.ddl.dropTable({ sessionId: state.sessionId, database: state.database, table, prodConfirmed });
                     toast('success', '表已删除', table);
                     refreshSchema(state.sessionId, state.database).catch(() => {});
                     close();

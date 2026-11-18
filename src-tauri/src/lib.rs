@@ -142,6 +142,7 @@ mod backend_tests {
             max_rows: Some(100),
             auto_limit: Some(false),
             timeout_ms: None,
+            prod_confirmed: true,
         }
     }
 
@@ -183,6 +184,7 @@ mod backend_tests {
             max_rows: Some(5000),
             auto_limit: Some(true),
             timeout_ms: None,
+            prod_confirmed: true,
         }
     }
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.24 — Production guard, better editing
+
+- 生产环境（连接分类为“生产”）执行 UPDATE / DELETE / DROP / ALTER / TRUNCATE / RENAME / REPLACE 时强制二次确认：表内更新、删除行、删除表、修改表结构以及手写 SQL 都走同一套确认弹窗，弹窗内展示具体 SQL
+- 后端同步加固：即使绕过界面，生产环境缺少确认标记也会直接拒绝危险 SQL、更新行、删除行和 DDL
+- 危险 SQL 识别覆盖 CTE 写语句与可执行注释，同时忽略字符串/注释中的关键字
+- 修复索引方法类型丢失：`Index_type` 序列化为 `type`，现在显示 BTREE/HASH/FULLTEXT 等；联合索引显示「联合 N 列」并按序号排列字段
+- 双击单元格进入编辑时不再全选内容，光标落在末尾；编辑中单击单元格不会退出编辑
+- SQL 预览条的复制按钮移到语句末尾，SQL 超长时省略显示，悬停 tooltip 展示完整语句
+- 新增行弹窗、删除确认弹窗同样使用末尾复制按钮 + 完整 SQL tooltip
+
 ## 0.3.23 — Sharper text, visible SQL
 
 - 关闭 `-webkit-font-smoothing: antialiased` 与 `optimizeLegibility`，改用系统默认渲染，Retina 上文字不再发虚

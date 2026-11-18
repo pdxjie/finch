@@ -37,6 +37,7 @@ import { Select } from './Select';
 import { DdlViewer } from './DdlViewer';
 import { formatCreateTable } from '../lib/ddlFormat';
 import { buildDeleteSql, buildInsertSql, buildSelectSql, buildUpdateSql } from '../lib/tableSql';
+import { isProdProfile } from '../lib/prodConfirm';
 import { Modal } from './Modal';
 import { IconButton, Kbd, Segmented, Spinner } from './ui';
 
@@ -49,6 +50,7 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
   const updateCell = useStore((state) => state.updateCell);
   const deleteTableRows = useStore((state) => state.deleteTableRows);
   const insertTableRow = useStore((state) => state.insertTableRow);
+  const confirmProduction = useStore((state) => state.confirmProduction);
   const toast = useStore((state) => state.toast);
   const session = useStore((state) => state.sessions[tab.sessionId]);
   const profile = useStore((state) => state.connections.find((item) => item.id === tab.sessionId));
@@ -498,7 +500,15 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
                   const columnName = data?.columns[column]?.name;
                   const keys = keysForRow(row);
                   const sql = columnName && keys ? buildUpdateSql(tab.database, tab.table || '', columnName, value, keys) : '';
-                  const ok = await updateCell(tab.id, row, column, value);
+                  if (isProdProfile(profile)) {
+                    const confirmed = await confirmProduction({
+                      title: '生产环境：确认更新',
+                      message: `即将修改 ${tab.database}.${tab.table} 第 ${row + 1} 行的 ${columnName} 字段。`,
+                      sql,
+                    });
+                    if (!confirmed) return false;
+                  }
+                  const ok = await updateCell(tab.id, row, column, value, isProdProfile(profile));
                   if (ok) showSql(sql);
                   return ok;
                 }}
@@ -605,7 +615,15 @@ export function TableWorkspace({ tab }: { tab: WorkspaceTab }) {
                 <button
                   className="btn btn-danger"
                   onClick={async () => {
-                    const ok = await deleteTableRows(tab.id, [...selectedRows]);
+                    if (isProdProfile(profile)) {
+                      const confirmed = await confirmProduction({
+                        title: '生产环境：确认删除',
+                        message: `即将从 ${tab.database}.${tab.table} 删除 ${selectedRows.size} 行数据，且不可恢复。`,
+                        sql: deleteSql,
+                      });
+                      if (!confirmed) return;
+                    }
+                    const ok = await deleteTableRows(tab.id, [...selectedRows], isProdProfile(profile));
                     if (ok) {
                       setDeleteOpen(false);
                       setSelectedRows(new Set());
@@ -735,6 +753,11 @@ function TableSkeleton() {
   );
 }
 
+function truncateSql(sql: string, max = 150): string {
+  const single = sql.replace(/\s+/g, ' ').trim();
+  return single.length > max ? `${single.slice(0, max)}…` : single;
+}
+
 function SqlPreviewBar({ sql, onClose }: { sql: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -743,21 +766,24 @@ function SqlPreviewBar({ sql, onClose }: { sql: string; onClose: () => void }) {
         <Code2 size={12} />
         <strong>SQL</strong>
         <span className="table-sql-spacer" />
+        <button className="icon-btn is-compact" onClick={onClose} title="关闭 SQL 预览">
+          <X size={12} />
+        </button>
+      </div>
+      <div className="sql-preview-line" title={sql}>
+        <code>{truncateSql(sql)}</code>
         <button
-          className="btn btn-ghost btn-sm"
+          className="sql-copy"
+          title="复制 SQL"
           onClick={() => {
             navigator.clipboard.writeText(sql);
             setCopied(true);
             setTimeout(() => setCopied(false), 1400);
           }}
         >
-          {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? '已复制' : '复制'}
-        </button>
-        <button className="icon-btn is-compact" onClick={onClose} title="关闭 SQL 预览">
-          <X size={12} />
+          {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
-      <pre>{sql}</pre>
     </div>
   );
 }
@@ -768,18 +794,21 @@ function SqlPreviewBlock({ label, sql }: { label: string; sql: string }) {
     <div className="sql-preview-block">
       <div className="sql-preview-block-head">
         <span>{label}</span>
+      </div>
+      <div className="sql-preview-line" title={sql}>
+        <code>{truncateSql(sql)}</code>
         <button
-          className="btn btn-ghost btn-sm"
+          className="sql-copy"
+          title="复制 SQL"
           onClick={() => {
             navigator.clipboard.writeText(sql);
             setCopied(true);
             setTimeout(() => setCopied(false), 1400);
           }}
         >
-          {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? '已复制' : '复制'}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
-      <pre>{sql}</pre>
     </div>
   );
 }
@@ -1032,11 +1061,14 @@ function StructureView({ tab }: { tab: WorkspaceTab }) {
                     <KeyRound size={13} />
                     <strong>{name}</strong>
                     {columns[0]?.unique ? <span className="index-badge is-unique">UNIQUE</span> : <span className="index-badge">INDEX</span>}
-                    <span className="index-type">{columns[0]?.type}</span>
+                    {columns.length > 1 && <span className="index-badge is-composite">联合 {columns.length} 列</span>}
+                    <span className="index-type">{columns[0]?.type || 'BTREE'}</span>
                   </div>
                   <div className="index-columns">
-                    {columns.map((column) => (
-                      <span key={column.column}>{column.column}<em>{column.sequence}</em></span>
+                    {[...columns].sort((a, b) => a.sequence - b.sequence).map((column) => (
+                      <span key={column.column} title={`第 ${column.sequence} 列 · ${column.type}`}>
+                        <em>{column.sequence}</em>{column.column}
+                      </span>
                     ))}
                   </div>
                 </div>

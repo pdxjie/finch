@@ -51,8 +51,8 @@ async fn read_only_blocks_all_mutation_entries_and_live_setting_changes() {
         assert!(query::execute(&state, payload(&id, &database, sql)).await.unwrap_err().contains("只读"));
     }
     let keys = json!({"id":1}).as_object().unwrap().clone();
-    assert!(schema::update_cell(&state, UpdateCellPayload { session_id:id.clone(), database:database.clone(), table:"t".into(), column:"note".into(), value:json!("changed"), keys:keys.clone() }).await.unwrap_err().contains("只读"));
-    assert!(schema::delete_rows(&state, DeleteRowsPayload { session_id:id.clone(), database:database.clone(), table:"t".into(), rows:vec![keys] }).await.unwrap_err().contains("只读"));
+    assert!(schema::update_cell(&state, UpdateCellPayload { session_id:id.clone(), database:database.clone(), table:"t".into(), column:"note".into(), value:json!("changed"), keys:keys.clone(), prod_confirmed:true }).await.unwrap_err().contains("只读"));
+    assert!(schema::delete_rows(&state, DeleteRowsPayload { session_id:id.clone(), database:database.clone(), table:"t".into(), rows:vec![keys], prod_confirmed:true }).await.unwrap_err().contains("只读"));
     assert!(schema::insert_row(&state, InsertRowPayload { session_id:id.clone(), database:database.clone(), table:"t".into(), values:json!({"id":2}).as_object().unwrap().clone() }).await.unwrap_err().contains("只读"));
     assert!(ddl::create_table(&state, CreateTableRequest { session_id:id.clone(), database:database.clone(), table:"new_table".into(), ..Default::default() }).await.unwrap_err().contains("只读"));
     assert!(ddl::alter_table(&state, AlterTableRequest { session_id:id.clone(), database:database.clone(), table:"t".into(), ..Default::default() }).await.unwrap_err().contains("只读"));

@@ -43,7 +43,7 @@ Finch 最初是一版 Electron 原型。功能能跑，但**安装包 128 MB、�
 ```bash
 npm install
 npm run package:mac
-open src-tauri/target/release/bundle/dmg/Finch_0.3.25_aarch64.dmg
+open src-tauri/target/release/bundle/dmg/Finch_0.4.0_aarch64.dmg
 ```
 
 > 仓库不提交构建产物；`release/`、`dist/`、`src-tauri/target/` 都在 `.gitignore` 中。
@@ -128,6 +128,15 @@ open src-tauri/target/release/bundle/dmg/Finch_0.3.25_aarch64.dmg
 - 转储支持**合并为一个 SQL 文件**或**每表一个 SQL 文件**（选目录自动命名），并可先**预览所选表的 DDL**
 - DDL 视图可选中文本用 ⌘C 复制；字段列表悬停可复制单个字段定义
 - 表浏览页的筛选、排序、表/视图切换与选中表会保存在标签页上，进入表数据再返回不会丢失
+
+### 局域网传输（Beta）
+
+- 同一局域网内自动发现其他 Finch；请求 → 对方选择连接并接受 → 建立双向会话
+- 双方都可以发送**表**或**普通文件**
+- 文件流式落盘、SHA-256 校验、不限大小；接收目录在会话建立时选择
+- 表只写两边共同字段并按主键 UPSERT；缺表按源结构创建，已有表不做 ALTER
+- **生产连接不会出现在选择列表，后端也会拒绝**
+- TLS 1.3 加密，密码与 Keychain 永不出本机；会话需对方明确接受
 
 ### 数据同步
 

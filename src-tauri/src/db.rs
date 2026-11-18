@@ -65,6 +65,7 @@ pub struct AppState {
     pub ai_providers: Mutex<Vec<AiProvider>>,
     pub cancels: Mutex<HashMap<String, Arc<QueryControl>>>,
     pub ai_cancels: Mutex<HashMap<String, tokio::sync::watch::Sender<bool>>>,
+    pub lan: std::sync::Arc<crate::lan::LanState>,
 }
 
 pub fn is_cancelled(state: &AppState, execution_id: &str) -> bool {
@@ -88,6 +89,7 @@ impl AppState {
             ai_providers: Mutex::new(store::load_ai_providers()),
             cancels: Mutex::new(HashMap::new()),
             ai_cancels: Mutex::new(HashMap::new()),
+            lan: std::sync::Arc::new(crate::lan::LanState::new()),
         }
     }
 
@@ -471,6 +473,24 @@ pub fn serialize_row(row: &Row) -> Vec<Json> {
     (0..row.len())
         .map(|index| serialize_value(row.as_ref(index), columns.get(index)))
         .collect()
+}
+
+pub fn json_to_mysql(value: &Json) -> Value {
+    match value {
+        Json::Null => Value::NULL,
+        Json::Bool(v) => Value::Int(if *v { 1 } else { 0 }),
+        Json::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Value::Int(i)
+            } else if let Some(u) = n.as_u64() {
+                Value::UInt(u)
+            } else {
+                Value::Double(n.as_f64().unwrap_or(0.0))
+            }
+        }
+        Json::String(s) => Value::Bytes(s.as_bytes().to_vec()),
+        Json::Array(_) | Json::Object(_) => Value::Bytes(value.to_string().into_bytes()),
+    }
 }
 
 pub fn mysql_to_text(value: Option<&Value>) -> String {

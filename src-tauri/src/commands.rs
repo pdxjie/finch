@@ -459,6 +459,82 @@ pub fn set_theme(app: AppHandle, theme: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub async fn lan_start(app: AppHandle, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    state.lan.start(&app).await
+}
+
+#[tauri::command]
+pub fn lan_stop(state: State<'_, AppState>) -> Result<bool, String> {
+    state.lan.stop();
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn lan_status(state: State<'_, AppState>) -> serde_json::Value {
+    state.lan.status()
+}
+
+#[tauri::command]
+pub fn lan_set_device_name(state: State<'_, AppState>, name: String) -> Result<bool, String> {
+    state.lan.set_device_name(&name)?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn lan_connect(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    peer_id: String,
+    connection_id: String,
+    database: String,
+) -> Result<serde_json::Value, String> {
+    state.lan.connect(&app, &peer_id, &connection_id, &database).await
+}
+
+#[tauri::command]
+pub fn lan_respond(
+    state: State<'_, AppState>,
+    request_id: String,
+    accept: bool,
+    connection_id: String,
+    database: String,
+    download_dir: String,
+) -> Result<bool, String> {
+    state.lan.respond(&request_id, accept, &connection_id, &database, &download_dir)?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn lan_send_file(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    session_id: String,
+    path: String,
+) -> Result<bool, String> {
+    state.lan.send_file(&app, &session_id, &path).await?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn lan_send_tables(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    session_id: String,
+    tables: Vec<String>,
+    structure: bool,
+    data: bool,
+) -> Result<bool, String> {
+    state.lan.send_tables(&app, &session_id, tables, structure, data).await?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn lan_disconnect(state: State<'_, AppState>, session_id: String) -> Result<bool, String> {
+    state.lan.disconnect(&session_id);
+    Ok(true)
+}
+
+#[tauri::command]
 pub fn set_webview_zoom(window: tauri::WebviewWindow, scale: f64) -> Result<bool, String> {
     let scale = if scale.is_finite() { scale.clamp(0.5, 2.5) } else { 1.0 };
     window.set_zoom(scale).map_err(|error| error.to_string())?;

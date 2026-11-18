@@ -31,7 +31,8 @@
 │  sync.rs      数据同步（目标 guard / 分片 / 并发）                  │
 │  ddl.rs       建表 / 改表 / 删表 / 索引                            │
 │  dump.rs      流式 SQL 转储                                        │
-│  heartbeat.rs 连接心跳与自动重连决策                                │
+│  heartbeat.rs 连接心跳与自动重连决策
+  lan.rs        局域网发现、TLS 会话、文件/表传输                                │
 │  store.rs     JSON 配置 + macOS Keychain                           │
 │  ssh.rs       SSH 隧道（私钥）                                     │
 └────────────────────────────────────────────────────────────────────┘

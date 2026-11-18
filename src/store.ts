@@ -16,6 +16,10 @@ import type {
   SessionInfo,
   TableData,
   TableDetails,
+  LanProgress,
+  LanRequest,
+  LanSessionInfo,
+  LanStatus,
   TableFilter,
   TableInfo,
   TableQuery,
@@ -102,6 +106,11 @@ interface Store {
   confirmState: ConfirmOptions | null;
   toasts: Toast[];
   themeResolved: 'light' | 'dark';
+  lanStatus: LanStatus | null;
+  lanRequest: LanRequest | null;
+  lanSessions: LanSessionInfo[];
+  lanProgress: Record<string, LanProgress>;
+  lanActiveSessionId: string | null;
 
   init: () => Promise<void>;
   setTheme: (mode: ThemeMode) => Promise<void>;
@@ -158,6 +167,17 @@ interface Store {
   toggleSidebar: () => void;
   setPaletteOpen: (open: boolean) => void;
   setSyncOpen: (open: boolean) => void;
+  refreshLan: () => Promise<void>;
+  startLan: () => Promise<void>;
+  stopLan: () => Promise<void>;
+  setLanDeviceName: (name: string) => Promise<void>;
+  connectLanPeer: (peerId: string, connectionId: string, database: string) => Promise<LanSessionInfo | null>;
+  respondLan: (input: { requestId: string; accept: boolean; connectionId: string; database: string; downloadDir: string }) => Promise<boolean>;
+  dismissLanRequest: () => void;
+  sendLanFile: (sessionId: string, path: string) => Promise<void>;
+  sendLanTables: (sessionId: string, tables: string[], structure: boolean, data: boolean) => Promise<void>;
+  disconnectLan: (sessionId: string) => Promise<void>;
+  setLanActiveSession: (sessionId: string | null) => void;
   setAiOpen: (open: boolean) => void;
   openTableTool: (state: NonNullable<TableToolState>) => void;
   closeTableTool: () => void;
@@ -252,6 +272,11 @@ export const useStore = create<Store>((set, get) => ({
   confirmState: null,
   toasts: [],
   themeResolved: 'light',
+  lanStatus: null,
+  lanRequest: null,
+  lanSessions: [],
+  lanProgress: {},
+  lanActiveSessionId: null,
 
   init: async () => {
     if (initPromise) return initPromise;
@@ -295,6 +320,24 @@ export const useStore = create<Store>((set, get) => ({
           }
         };
         media.addEventListener('change', onScheme);
+        api().onEvent((event) => {
+          const payload = event as unknown as Record<string, unknown>;
+          if (payload.type === 'lan:request') {
+            set({ lanRequest: payload as unknown as LanRequest });
+          } else if (payload.type === 'lan:session') {
+            const session = payload.session as LanSessionInfo;
+            set((state) => ({ lanSessions: [...state.lanSessions.filter((item) => item.id !== session.id), session] }));
+          } else if (payload.type === 'lan:progress') {
+            const progress = payload as unknown as LanProgress;
+            set((state) => ({ lanProgress: { ...state.lanProgress, [progress.sessionId]: progress } }));
+          } else if (payload.type === 'lan:closed') {
+            const sessionId = String(payload.sessionId || '');
+            set((state) => ({
+              lanSessions: state.lanSessions.filter((item) => item.id !== sessionId),
+              lanProgress: Object.fromEntries(Object.entries(state.lanProgress).filter(([key]) => key !== sessionId)),
+            }));
+          }
+        });
 
         if (api().env.demo) {
           await get().ensureDemo();
@@ -1157,6 +1200,85 @@ export const useStore = create<Store>((set, get) => ({
   toggleSidebar: () => set((state) => ({ sidebarVisible: !state.sidebarVisible })),
   setPaletteOpen: (open) => set({ paletteOpen: open }),
   setSyncOpen: (open) => set({ syncOpen: open }),
+
+  refreshLan: async () => {
+    try {
+      set({ lanStatus: await api().lan.status() });
+    } catch {
+      /* LAN may be disabled */
+    }
+  },
+
+  startLan: async () => {
+    try {
+      set({ lanStatus: await api().lan.start() });
+    } catch (error) {
+      get().toast('error', '局域网传输启动失败', errorText(error));
+    }
+  },
+
+  stopLan: async () => {
+    await api().lan.stop().catch(() => {});
+    set({ lanStatus: null, lanRequest: null, lanSessions: [], lanProgress: {} });
+  },
+
+  setLanDeviceName: async (name) => {
+    await api().lan.setDeviceName(name).catch(() => {});
+    await get().refreshLan();
+  },
+
+  connectLanPeer: async (peerId, connectionId, database) => {
+    try {
+      const connected = await get().connect(connectionId, { focus: false });
+      if (!connected) return null;
+      const session = await api().lan.connect(peerId, connectionId, database);
+      set((state) => ({ lanSessions: [...state.lanSessions.filter((item) => item.id !== session.id), session] }));
+      return session;
+    } catch (error) {
+      get().toast('error', '连接失败', errorText(error));
+      return null;
+    }
+  },
+
+  respondLan: async (input) => {
+    try {
+      await api().lan.respond(input);
+      set({ lanRequest: null });
+      return true;
+    } catch (error) {
+      get().toast('error', '处理请求失败', errorText(error));
+      return false;
+    }
+  },
+
+  dismissLanRequest: () => set({ lanRequest: null }),
+
+  sendLanFile: async (sessionId, path) => {
+    try {
+      await api().lan.sendFile(sessionId, path);
+    } catch (error) {
+      get().toast('error', '发送文件失败', errorText(error));
+    }
+  },
+
+  sendLanTables: async (sessionId, tables, structure, data) => {
+    try {
+      await api().lan.sendTables(sessionId, tables, structure, data);
+      get().toast('success', '表传输完成', `${tables.length} 张表已发送`);
+    } catch (error) {
+      get().toast('error', '表传输失败', errorText(error));
+    }
+  },
+
+  disconnectLan: async (sessionId) => {
+    await api().lan.disconnect(sessionId).catch(() => {});
+    set((state) => ({
+      lanSessions: state.lanSessions.filter((item) => item.id !== sessionId),
+      lanActiveSessionId: state.lanActiveSessionId === sessionId ? null : state.lanActiveSessionId,
+    }));
+  },
+
+  setLanActiveSession: (sessionId) => set({ lanActiveSessionId: sessionId }),
   setAiOpen: (open) => set({ aiOpen: open }),
   openTableTool: (state) => set({ tableTool: state }),
   closeTableTool: () => set({ tableTool: null }),

@@ -9528,3 +9528,150 @@ html[data-motion='off'] .loading-bars span {
 }
 .sql-preview-line code.is-truncated { cursor: help; }
 .sql-preview-line .sql-copy { flex: 0 0 22px; }
+
+/* ================================================================
+   LAN transfer
+   ================================================================ */
+.lan-settings { display: flex; flex-direction: column; gap: 14px; }
+.lan-name-input {
+  width: 200px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 10.5px;
+}
+.lan-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9.5px;
+  color: var(--text-faint);
+}
+.lan-status.is-on { color: var(--green); }
+.lan-empty {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  color: var(--text-faint);
+  font-size: 10px;
+}
+.lan-peers { display: flex; flex-direction: column; gap: 4px; }
+.lan-peer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-faint);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  text-align: left;
+}
+.lan-peer span { flex: 1; color: var(--text); }
+.lan-peer em { font-style: normal; font-family: var(--mono); font-size: 9px; color: var(--text-faint); }
+.lan-peer.is-active { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent-soft); }
+.lan-request-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line-faint);
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+.lan-sessions { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.lan-sessions > strong { font-size: 9.5px; color: var(--text-faint); font-weight: 600; }
+.lan-sessions button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-align: left;
+}
+.lan-sessions button span { margin-left: auto; font-family: var(--mono); font-size: 9px; color: var(--text-faint); }
+.lan-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+.lan-hint code { font-family: var(--mono); color: var(--text-muted); }
+.lan-accept { display: flex; flex-direction: column; gap: 10px; }
+.lan-accept-peer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 7px;
+  background: var(--accent-softer);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+}
+.lan-accept-peer div { display: flex; flex-direction: column; gap: 2px; }
+.lan-accept-peer strong { font-size: 11px; }
+.lan-accept-peer span { font-size: 9.5px; color: var(--text-muted); }
+.lan-dir { display: flex; align-items: center; gap: 6px; max-width: 210px; }
+.lan-dir code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.lan-session { display: flex; flex-direction: column; gap: 12px; }
+.lan-session-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+.lan-session-meta div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lan-session-meta span { font-size: 9px; color: var(--text-faint); }
+.lan-session-meta strong { font-size: 10px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lan-send-row { display: flex; align-items: center; gap: 9px; font-size: 9.5px; color: var(--text-faint); }
+.lan-progress { display: flex; flex-direction: column; gap: 5px; }
+.lan-progress > div:first-child { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--text-muted); }
+.lan-progress strong { font-family: var(--mono); font-size: 9px; color: var(--accent); }
+.lan-progress-bar { height: 4px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.lan-progress-bar span { display: block; height: 100%; background: var(--accent); transition: width 0.15s linear; }
+.lan-table-picker { border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.lan-table-head, .lan-table-foot { display: flex; align-items: center; gap: 8px; padding: 7px 9px; background: var(--surface-2); }
+.lan-table-head { border-bottom: 1px solid var(--line-faint); font-size: 9.5px; color: var(--text-faint); }
+.lan-table-head strong { color: var(--text-secondary); font-size: 10px; }
+.lan-table-foot { border-top: 1px solid var(--line-faint); }
+.lan-spacer { flex: 1; }
+.lan-table-list { max-height: 210px; overflow-y: auto; padding: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.lan-table {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 7px;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: var(--mono);
+  text-align: left;
+}
+.lan-table:hover { background: var(--surface-2); }
+.lan-table.is-checked { background: var(--accent-soft); color: var(--text); }
+.lan-table .grid-check { width: 13px; height: 13px; opacity: 1; }

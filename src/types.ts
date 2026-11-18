@@ -596,6 +596,23 @@ export interface FinchyAPI {
     alterTable: (request: AlterTableRequest) => Promise<string>;
     dropTable: (payload: { sessionId: string; database: string; table: string; prodConfirmed?: boolean }) => Promise<string>;
   };
+  lan: {
+    status: () => Promise<LanStatus>;
+    start: () => Promise<LanStatus>;
+    stop: () => Promise<boolean>;
+    setDeviceName: (name: string) => Promise<boolean>;
+    connect: (peerId: string, connectionId: string, database: string) => Promise<LanSessionInfo>;
+    respond: (input: {
+      requestId: string;
+      accept: boolean;
+      connectionId: string;
+      database: string;
+      downloadDir: string;
+    }) => Promise<boolean>;
+    sendFile: (sessionId: string, path: string) => Promise<boolean>;
+    sendTables: (sessionId: string, tables: string[], structure: boolean, data: boolean) => Promise<boolean>;
+    disconnect: (sessionId: string) => Promise<boolean>;
+  };
   dump: (request: DumpRequest) => Promise<{ saved: boolean; path: string; tables: number; files?: string[]; split?: boolean }>;
   server: {
     overview: (sessionId: string) => Promise<ServerOverview>;
@@ -656,4 +673,45 @@ declare global {
   interface Window {
     finch: FinchyAPI;
   }
+}
+
+export interface LanPeer {
+  id: string;
+  name: string;
+  address: string;
+  port: number;
+}
+
+export interface LanSessionInfo {
+  id: string;
+  peerName: string;
+  peerConnection: string;
+  peerDatabase: string;
+  myConnectionId: string;
+  myDatabase: string;
+  downloadDir: string;
+}
+
+export interface LanStatus {
+  enabled: boolean;
+  deviceName: string;
+  deviceId: string;
+  port: number;
+  peers: LanPeer[];
+  sessions: LanSessionInfo[];
+}
+
+export interface LanRequest {
+  id: string;
+  peerName: string;
+  connectionName: string;
+  database: string;
+}
+
+export interface LanProgress {
+  sessionId: string;
+  kind: string;
+  name: string;
+  done: number;
+  total: number;
 }

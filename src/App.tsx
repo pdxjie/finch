@@ -13,6 +13,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { ConnectionModal } from './components/ConnectionModal';
 import { SettingsModal, ShortcutsModal, SaveQueryModal } from './components/SettingsModal';
 import { SyncModal } from './components/SyncModal';
+import { LanIncomingDialog, LanSessionDialog } from './components/Lan';
 import { TableDesignerModal, DumpModal } from './components/TableTools';
 import { Toasts } from './components/Toasts';
 import { ConfirmDialog } from './components/ConfirmDialog';
@@ -311,6 +312,8 @@ export default function App() {
       {modal === 'shortcuts' && <ShortcutsModal />}
       {modal === 'save-query' && <SaveQueryModal />}
       {syncOpen && <SyncModal onClose={() => useStore.getState().setSyncOpen(false)} />}
+      <LanIncomingDialog />
+      <LanSessionDialog />
       <TableDesignerModal />
       <DumpModal />
       <ConfirmDialog />

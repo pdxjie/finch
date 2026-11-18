@@ -5,6 +5,7 @@ mod db;
 mod ddl;
 mod dump;
 mod heartbeat;
+mod lan;
 mod models;
 mod query;
 mod schema;
@@ -90,6 +91,15 @@ pub fn run() {
             commands::set_theme,
             commands::set_title,
             commands::set_webview_zoom,
+            commands::lan_start,
+            commands::lan_stop,
+            commands::lan_status,
+            commands::lan_set_device_name,
+            commands::lan_connect,
+            commands::lan_respond,
+            commands::lan_send_file,
+            commands::lan_send_tables,
+            commands::lan_disconnect,
             commands::write_text_file,
             commands::read_text_file,
             commands::reveal_path,

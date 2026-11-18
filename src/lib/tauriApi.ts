@@ -23,6 +23,8 @@ import type {
   TableFilter,
   TableInfo,
   AiProvider,
+  LanSessionInfo,
+  LanStatus,
   AiGenerateResult,
   AiStreamEvent,
   SyncPreview,
@@ -194,6 +196,19 @@ function createApi(): FinchyAPI {
       dropTable: (payload) => wrap(invokeSafe<string>('drop_table', payload)),
     },
     dump: (request) => wrap(invokeSafe<Awaited<ReturnType<FinchyAPI['dump']>>>('dump_database', { request })),
+    lan: {
+      status: () => wrap(invokeSafe<LanStatus>('lan_status')),
+      start: () => wrap(invokeSafe<LanStatus>('lan_start')),
+      stop: () => wrap(invokeSafe<boolean>('lan_stop')),
+      setDeviceName: (name) => wrap(invokeSafe<boolean>('lan_set_device_name', { name })),
+      connect: (peerId, connectionId, database) =>
+        wrap(invokeSafe<LanSessionInfo>('lan_connect', { peerId, connectionId, database })),
+      respond: (input) => wrap(invokeSafe<boolean>('lan_respond', input)),
+      sendFile: (sessionId, path) => wrap(invokeSafe<boolean>('lan_send_file', { sessionId, path })),
+      sendTables: (sessionId, tables, structure, data) =>
+        wrap(invokeSafe<boolean>('lan_send_tables', { sessionId, tables, structure, data })),
+      disconnect: (sessionId) => wrap(invokeSafe<boolean>('lan_disconnect', { sessionId })),
+    },
     server: {
       overview: (sessionId) => wrap(invokeSafe<ServerOverview>('server_overview', { sessionId })),
       processes: (sessionId) => wrap(invokeSafe<ProcessInfo[]>('server_processes', { sessionId })),

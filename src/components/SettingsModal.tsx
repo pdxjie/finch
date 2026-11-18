@@ -8,6 +8,7 @@ import {
   FolderOpen,
   HardDrive,
   Info,
+  Wifi,
   Keyboard,
   Lock,
   Monitor,
@@ -61,6 +62,7 @@ import { Modal } from './Modal';
 import { Kbd, Segmented, Switch } from './ui';
 import { Logo } from './Logo';
 import { AIProvidersPanel } from './AIStudio';
+import { LanSettings } from './Lan';
 
 export function SettingsModal() {
   const setModal = useStore((state) => state.setModal);
@@ -74,7 +76,7 @@ export function SettingsModal() {
   const clearHistory = useStore((state) => state.clearHistory);
   const askConfirm = useStore((state) => state.askConfirm);
   const toast = useStore((state) => state.toast);
-  const [section, setSection] = useState<'appearance' | 'query' | 'ai' | 'data' | 'about'>('appearance');
+  const [section, setSection] = useState<'appearance' | 'query' | 'ai' | 'lan' | 'data' | 'about'>('appearance');
 
   return (
     <Modal
@@ -102,6 +104,7 @@ export function SettingsModal() {
             { id: 'appearance', label: '外观', icon: Palette },
             { id: 'query', label: '查询与结果', icon: FileCode2 },
             { id: 'ai', label: 'AI 服务商', icon: Sparkles },
+            { id: 'lan', label: '局域网传输', icon: Wifi },
             { id: 'data', label: '数据与隐私', icon: HardDrive },
             { id: 'about', label: '关于 Finch', icon: Info },
           ].map((item) => (
@@ -348,6 +351,7 @@ export function SettingsModal() {
           )}
 
           {section === 'ai' && <AIProvidersPanel />}
+          {section === 'lan' && <LanSettings />}
 
           {section === 'data' && (
             <>

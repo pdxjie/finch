@@ -510,24 +510,35 @@ async fn discovery_loop(app: AppHandle) {
     let _ = socket.set_broadcast(true);
     let mut buffer = [0u8; 4096];
     let lan = app.state::<AppState>().lan.clone();
+    // A fixed ticker is essential: the previous loop sent a beacon on every
+    // received packet and then re-received its own broadcast in a tight loop,
+    // which could saturate Wi-Fi with thousands of UDP packets per second.
+    let mut ticker = tokio::time::interval(Duration::from_secs(2));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
-        let enabled = lan.is_enabled();
-        let runtime = lan.runtime.lock().unwrap().clone();
-        if enabled {
-            if let Some(runtime) = runtime.as_ref() {
-                let payload = json!({
-                    "id": runtime.id,
-                    "name": lan.device_name.lock().unwrap().clone(),
-                    "port": runtime.port,
-                    "cert": base64::engine::general_purpose::STANDARD.encode(&runtime.cert),
-                })
-                .to_string();
-                let _ = socket.send_to(payload.as_bytes(), ("255.255.255.255", port)).await;
+        tokio::select! {
+            _ = ticker.tick() => {
+                let runtime = lan.runtime.lock().unwrap().clone();
+                if lan.is_enabled() {
+                    if let Some(runtime) = runtime.as_ref() {
+                        let payload = json!({
+                            "id": runtime.id,
+                            "name": lan.device_name.lock().unwrap().clone(),
+                            "port": runtime.port,
+                            "cert": base64::engine::general_purpose::STANDARD.encode(&runtime.cert),
+                        })
+                        .to_string();
+                        let _ = socket.send_to(payload.as_bytes(), ("255.255.255.255", port)).await;
+                    }
+                }
+                if let Ok(mut peers) = lan.peers.lock() {
+                    let now = Instant::now();
+                    peers.retain(|_, peer| now.duration_since(peer.seen) < Duration::from_secs(12));
+                }
             }
-        }
-        let received = tokio::time::timeout(Duration::from_secs(2), socket.recv_from(&mut buffer)).await;
-        if let Ok(Ok((length, address))) = received {
-            if let Ok(value) = serde_json::from_slice::<Json>(&buffer[..length]) {
+            received = socket.recv_from(&mut buffer) => {
+                let Ok((length, address)) = received else { continue };
+                let Ok(value) = serde_json::from_slice::<Json>(&buffer[..length]) else { continue };
                 let id = value["id"].as_str().unwrap_or_default().to_string();
                 if id.is_empty() {
                     continue;
@@ -559,10 +570,6 @@ async fn discovery_loop(app: AppHandle) {
                     },
                 );
             }
-        }
-        if let Ok(mut peers) = lan.peers.lock() {
-            let now = Instant::now();
-            peers.retain(|_, peer| now.duration_since(peer.seen) < Duration::from_secs(12));
         }
     }
 }

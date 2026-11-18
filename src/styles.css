@@ -9519,3 +9519,12 @@ html[data-motion='off'] .loading-bars span {
   overflow-y: auto;
   user-select: text;
 }
+
+/* SQL line: copy icon directly after the statement, tooltip only on truncated text */
+.sql-preview-line { justify-content: flex-start; }
+.sql-preview-line code {
+  flex: 0 1 auto;
+  max-width: calc(100% - 28px);
+}
+.sql-preview-line code.is-truncated { cursor: help; }
+.sql-preview-line .sql-copy { flex: 0 0 22px; }

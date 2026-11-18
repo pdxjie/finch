@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.25 — SQL preview detail
+
+- 复制按钮紧跟在 SQL 语句后面，长语句截断时停在省略号旁，不再固定在最右侧
+- 只有 SQL 被省略时才在语句上显示 title，悬停查看完整 SQL；未省略时不弹 tooltip
+- 复制按钮改用 aria-label，不再触发 tooltip 遮挡点击
+- 新增行、删除确认、表底部 SQL 条统一使用这套规则
+
 ## 0.3.24 — Production guard, better editing
 
 - 生产环境（连接分类为“生产”）执行 UPDATE / DELETE / DROP / ALTER / TRUNCATE / RENAME / REPLACE 时强制二次确认：表内更新、删除行、删除表、修改表结构以及手写 SQL 都走同一套确认弹窗，弹窗内展示具体 SQL

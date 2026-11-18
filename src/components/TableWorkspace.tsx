@@ -753,13 +753,16 @@ function TableSkeleton() {
   );
 }
 
-function truncateSql(sql: string, max = 150): string {
+function sqlPreviewText(sql: string, max = 150): { text: string; truncated: boolean } {
   const single = sql.replace(/\s+/g, ' ').trim();
-  return single.length > max ? `${single.slice(0, max)}…` : single;
+  return single.length > max
+    ? { text: `${single.slice(0, max)}…`, truncated: true }
+    : { text: single, truncated: false };
 }
 
 function SqlPreviewBar({ sql, onClose }: { sql: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const preview = sqlPreviewText(sql);
   return (
     <div className="table-sql-preview">
       <div className="table-sql-head">
@@ -770,11 +773,16 @@ function SqlPreviewBar({ sql, onClose }: { sql: string; onClose: () => void }) {
           <X size={12} />
         </button>
       </div>
-      <div className="sql-preview-line" title={sql}>
-        <code>{truncateSql(sql)}</code>
+      <div className="sql-preview-line">
+        <code
+          className={preview.truncated ? 'is-truncated' : undefined}
+          title={preview.truncated ? sql : undefined}
+        >
+          {preview.text}
+        </code>
         <button
           className="sql-copy"
-          title="复制 SQL"
+          aria-label="复制 SQL"
           onClick={() => {
             navigator.clipboard.writeText(sql);
             setCopied(true);
@@ -790,16 +798,22 @@ function SqlPreviewBar({ sql, onClose }: { sql: string; onClose: () => void }) {
 
 function SqlPreviewBlock({ label, sql }: { label: string; sql: string }) {
   const [copied, setCopied] = useState(false);
+  const preview = sqlPreviewText(sql);
   return (
     <div className="sql-preview-block">
       <div className="sql-preview-block-head">
         <span>{label}</span>
       </div>
-      <div className="sql-preview-line" title={sql}>
-        <code>{truncateSql(sql)}</code>
+      <div className="sql-preview-line">
+        <code
+          className={preview.truncated ? 'is-truncated' : undefined}
+          title={preview.truncated ? sql : undefined}
+        >
+          {preview.text}
+        </code>
         <button
           className="sql-copy"
-          title="复制 SQL"
+          aria-label="复制 SQL"
           onClick={() => {
             navigator.clipboard.writeText(sql);
             setCopied(true);
